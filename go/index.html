@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Pass-and-Play Go</title>
+  <style>
+    :root {
+      --bg: #1f2933;
+      --panel: #111827;
+      --wood: #d7a857;
+      --line: #422006;
+      --text: #f9fafb;
+      --muted: #cbd5e1;
+      --accent: #93c5fd;
+      --danger: #fca5a5;
+      --ok: #86efac;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { display: flex; justify-content: center; padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom); }
+    main { width: min(100%, 720px); padding: 14px 0 22px; }
+
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+    h1 { margin: 0; font-size: clamp(1.4rem, 6vw, 2.1rem); line-height: 1; }
+    .sub { margin-top: 6px; color: var(--muted); font-size: 0.95rem; }
+
+    .panel { background: color-mix(in srgb, var(--panel) 92%, white); border: 1px solid rgba(255,255,255,.1); border-radius: 16px; padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    .status { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .stat { padding: 10px; border-radius: 12px; background: rgba(255,255,255,.06); }
+    .stat strong { display: block; font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .stat span { display: block; margin-top: 4px; font-size: 1.05rem; }
+
+    .board-wrap { position: relative; width: 100%; aspect-ratio: 1 / 1; border-radius: 14px; background: var(--wood); overflow: hidden; box-shadow: inset 0 0 26px rgba(0,0,0,.22); touch-action: manipulation; }
+    canvas { display: block; width: 100%; height: 100%; }
+
+    .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+    button, select {
+      border: 0;
+      border-radius: 12px;
+      min-height: 44px;
+      padding: 10px 12px;
+      font: inherit;
+      color: var(--text);
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.12);
+    }
+    button:active { transform: translateY(1px); }
+    .primary { background: #2563eb; }
+    .danger { background: #991b1b; }
+    .wide { grid-column: span 3; }
+    .two { grid-column: span 2; }
+
+    .message { min-height: 1.4em; margin-top: 10px; color: var(--muted); font-size: .95rem; }
+    .black, .white { display: inline-flex; align-items: center; gap: 7px; }
+    .stone-dot { width: 16px; height: 16px; border-radius: 50%; display: inline-block; border: 1px solid rgba(255,255,255,.4); }
+    .black .stone-dot { background: #050505; }
+    .white .stone-dot { background: #f8fafc; }
+    .rules { margin-top: 12px; color: var(--muted); font-size: .9rem; line-height: 1.35; }
+    details summary { cursor: pointer; color: var(--accent); }
+    label { color: var(--muted); font-size: .9rem; display: block; margin-bottom: 6px; }
+    .setup { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    @media (max-width: 420px) {
+      .controls { grid-template-columns: repeat(2, 1fr); }
+      .wide, .two { grid-column: span 2; }
+      .status { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Go</h1>
+        <div class="sub">Pass-and-play board for one phone</div>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="setup">
+        <div>
+          <label for="size">Board size</label>
+          <select id="size">
+            <option value="9" selected>9×9</option>
+            <option value="13">13×13</option>
+            <option value="19">19×19</option>
+          </select>
+        </div>
+        <div>
+          <label for="komi">Komi</label>
+          <select id="komi">
+            <option value="0">0</option>
+            <option value="5.5">5.5</option>
+            <option value="6.5" selected>6.5</option>
+            <option value="7.5">7.5</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="status">
+        <div class="stat">
+          <strong>Turn</strong>
+          <span id="turn" class="black"><i class="stone-dot"></i> Black</span>
+        </div>
+        <div class="stat">
+          <strong>Captures</strong>
+          <span id="captures">Black 0 · White 0</span>
+        </div>
+      </div>
+
+      <div class="board-wrap">
+        <canvas id="board" aria-label="Go board"></canvas>
+      </div>
+
+      <div class="controls">
+        <button id="pass" class="primary">Pass</button>
+        <button id="undo">Undo</button>
+        <button id="score">Score</button>
+        <button id="resign" class="danger">Resign</button>
+        <button id="reset" class="danger two">New game</button>
+      </div>
+
+      <div id="message" class="message">Tap an intersection to play. Black starts.</div>
+
+      <details class="rules">
+        <summary>Notes</summary>
+        <p>This is a practical pass-and-play board, not a certified referee. It enforces captures, suicide prevention, and simple ko. Scoring is an estimate using area scoring: stones plus fully surrounded empty territory, with komi added to White.</p>
+      </details>
+    </section>
+  </main>
+
+<script>
+(() => {
+  const canvas = document.getElementById("board");
+  const ctx = canvas.getContext("2d");
+  const sizeEl = document.getElementById("size");
+  const komiEl = document.getElementById("komi");
+  const turnEl = document.getElementById("turn");
+  const capturesEl = document.getElementById("captures");
+  const msgEl = document.getElementById("message");
+
+  let N = Number(sizeEl.value);
+  let board = emptyBoard(N);
+  let turn = 1; // 1 black, 2 white
+  let captures = {1: 0, 2: 0};
+  let history = [];
+  let koPoint = null; // position forbidden by ko (two moves ago)
+  let passCount = 0;
+  let gameOver = false;
+
+  function emptyBoard(n) {
+    return Array.from({length: n}, () => Array(n).fill(0));
+  }
+
+  function clone(b) {
+    return b.map(row => row.slice());
+  }
+
+  function serialize(b) {
+    return b.map(r => r.join("")).join("/");
+  }
+
+  function neighbors(x, y) {
+    return [[x-1,y],[x+1,y],[x,y-1],[x,y+1]].filter(([a,b]) => a >= 0 && b >= 0 && a < N && b < N);
+  }
+
+  function groupAt(b, x, y) {
+    const color = b[y][x];
+    const stack = [[x, y]];
+    const seen = new Set([`${x},${y}`]);
+    const stones = [];
+    const libs = new Set();
+
+    while (stack.length) {
+      const [cx, cy] = stack.pop();
+      stones.push([cx, cy]);
+      for (const [nx, ny] of neighbors(cx, cy)) {
+        if (b[ny][nx] === 0) libs.add(`${nx},${ny}`);
+        else if (b[ny][nx] === color) {
+          const key = `${nx},${ny}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            stack.push([nx, ny]);
+          }
+        }
+      }
+    }
+    return { stones, liberties: libs.size };
+  }
+
+  function tryPlay(x, y) {
+    if (gameOver) return setMsg("The game is over. Start a new game to continue.");
+    if (board[y][x] !== 0) return setMsg("That intersection is occupied.");
+
+    const before = clone(board);
+    const beforeKoPoint = koPoint;
+    const beforeCaptures = {...captures};
+    const beforeTurn = turn;
+    const beforePassCount = passCount;
+
+    board[y][x] = turn;
+    const opp = turn === 1 ? 2 : 1;
+    let taken = 0;
+
+    for (const [nx, ny] of neighbors(x, y)) {
+      if (board[ny][nx] === opp) {
+        const g = groupAt(board, nx, ny);
+        if (g.liberties === 0) {
+          for (const [sx, sy] of g.stones) board[sy][sx] = 0;
+          taken += g.stones.length;
+        }
+      }
+    }
+
+    if (groupAt(board, x, y).liberties === 0) {
+      board = before;
+      return setMsg("Illegal move: suicide.");
+    }
+
+    const after = serialize(board);
+    if (koPoint && after === koPoint) {
+      board = before;
+      return setMsg("Illegal move: simple ko.");
+    }
+
+    history.push({board: before, koPoint: beforeKoPoint, captures: beforeCaptures, turn: beforeTurn, passCount: beforePassCount, gameOver});
+    captures[turn] += taken;
+    koPoint = serialize(before); // ko: forbid returning to pre-move position
+    passCount = 0;
+    turn = opp;
+    setMsg(taken ? `Captured ${taken} stone${taken === 1 ? "" : "s"}.` : "Move played.");
+    draw();
+  }
+
+  function pass() {
+    if (gameOver) return setMsg("The game is over. Start a new game to continue.");
+    history.push({board: clone(board), koPoint, captures: {...captures}, turn, passCount, gameOver});
+    passCount++;
+    const passer = turn === 1 ? "Black" : "White";
+    turn = turn === 1 ? 2 : 1;
+    if (passCount >= 2) {
+      gameOver = true;
+      const s = score();
+      setMsg(`Both players passed. Estimated score: Black ${s.black}, White ${s.white}. ${s.winner}`);
+    } else {
+      setMsg(`${passer} passed.`);
+    }
+    draw();
+  }
+
+  function undo() {
+    const last = history.pop();
+    if (!last) return setMsg("Nothing to undo.");
+    board = last.board;
+    koPoint = last.koPoint;
+    captures = last.captures;
+    turn = last.turn;
+    passCount = last.passCount;
+    gameOver = last.gameOver;
+    setMsg("Undid last action.");
+    draw();
+  }
+
+  function score() {
+    const seen = new Set();
+    let black = 0, white = Number(komiEl.value);
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        if (board[y][x] === 1) black++;
+        else if (board[y][x] === 2) white++;
+        else {
+          const key = `${x},${y}`;
+          if (seen.has(key)) continue;
+          const region = [];
+          const borders = new Set();
+          const stack = [[x, y]];
+          seen.add(key);
+          while (stack.length) {
+            const [cx, cy] = stack.pop();
+            region.push([cx, cy]);
+            for (const [nx, ny] of neighbors(cx, cy)) {
+              if (board[ny][nx] === 0) {
+                const nk = `${nx},${ny}`;
+                if (!seen.has(nk)) { seen.add(nk); stack.push([nx, ny]); }
+              } else {
+                borders.add(board[ny][nx]);
+              }
+            }
+          }
+          if (borders.size === 1) {
+            if (borders.has(1)) black += region.length;
+            if (borders.has(2)) white += region.length;
+          }
+        }
+      }
+    }
+    black = Math.round(black * 10) / 10;
+    white = Math.round(white * 10) / 10;
+    const winner = black > white ? `Black wins by ${Math.round((black-white)*10)/10}.` : `White wins by ${Math.round((white-black)*10)/10}.`;
+    return {black, white, winner};
+  }
+
+  function showScore() {
+    const s = score();
+    setMsg(`Estimated area score: Black ${s.black}, White ${s.white}. ${s.winner}`);
+  }
+
+  function resign() {
+    if (gameOver) return;
+    const loser = turn === 1 ? "Black" : "White";
+    const winner = turn === 1 ? "White" : "Black";
+    gameOver = true;
+    setMsg(`${loser} resigns. ${winner} wins.`);
+    draw();
+  }
+
+  function reset() {
+    N = Number(sizeEl.value);
+    board = emptyBoard(N);
+    turn = 1;
+    captures = {1: 0, 2: 0};
+    history = [];
+    koPoint = null;
+    passCount = 0;
+    gameOver = false;
+    setMsg("New game. Black starts.");
+    draw();
+  }
+
+  function setMsg(text) { msgEl.textContent = text; }
+
+  function draw() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const pad = w * 0.075;
+    const cell = (w - 2 * pad) / (N - 1);
+
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--line").trim();
+    ctx.lineWidth = Math.max(1, w / 360);
+
+    for (let i = 0; i < N; i++) {
+      const p = pad + i * cell;
+      ctx.beginPath(); ctx.moveTo(p, pad); ctx.lineTo(p, h - pad); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(pad, p); ctx.lineTo(w - pad, p); ctx.stroke();
+    }
+
+    const starSets = {
+      9: [[2,2],[6,2],[2,6],[6,6],[4,4]],
+      13: [[3,3],[9,3],[3,9],[9,9],[6,6]],
+      19: [[3,3],[9,3],[15,3],[3,9],[9,9],[15,9],[3,15],[9,15],[15,15]]
+    };
+    ctx.fillStyle = ctx.strokeStyle;
+    for (const [sx, sy] of starSets[N] || []) {
+      ctx.beginPath();
+      ctx.arc(pad + sx * cell, pad + sy * cell, Math.max(2, cell * .08), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      if (!board[y][x]) continue;
+      const cx = pad + x * cell, cy = pad + y * cell, r = cell * .43;
+      const grad = ctx.createRadialGradient(cx - r*.35, cy - r*.35, r*.08, cx, cy, r);
+      if (board[y][x] === 1) {
+        grad.addColorStop(0, "#555");
+        grad.addColorStop(1, "#050505");
+      } else {
+        grad.addColorStop(0, "#fff");
+        grad.addColorStop(1, "#d8dee9");
+      }
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = board[y][x] === 1 ? "#000" : "#a8a8a8";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    turnEl.className = turn === 1 ? "black" : "white";
+    turnEl.innerHTML = `<i class="stone-dot"></i> ${turn === 1 ? "Black" : "White"}`;
+    capturesEl.textContent = `Black ${captures[1]} · White ${captures[2]}`;
+  }
+
+  function pointFromEvent(ev) {
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const pad = w * 0.075;
+    const cell = (w - 2 * pad) / (N - 1);
+    const x = Math.round((ev.clientX - rect.left - pad) / cell);
+    const y = Math.round((ev.clientY - rect.top - pad) / cell);
+    if (x < 0 || y < 0 || x >= N || y >= N) return null;
+    const px = pad + x * cell, py = pad + y * cell;
+    const dist = Math.hypot(ev.clientX - rect.left - px, ev.clientY - rect.top - py);
+    return dist <= cell * 0.48 ? {x, y} : null;
+  }
+
+  canvas.addEventListener("pointerup", ev => {
+    const p = pointFromEvent(ev);
+    if (p) tryPlay(p.x, p.y);
+  });
+
+  document.getElementById("pass").addEventListener("click", pass);
+  document.getElementById("undo").addEventListener("click", undo);
+  document.getElementById("score").addEventListener("click", showScore);
+  document.getElementById("resign").addEventListener("click", resign);
+  document.getElementById("reset").addEventListener("click", reset);
+  sizeEl.addEventListener("change", reset);
+  komiEl.addEventListener("change", () => setMsg(`Komi set to ${komiEl.value}.`));
+  window.addEventListener("resize", draw);
+
+  draw();
+})();
+</script>
+</body>
+</html>
