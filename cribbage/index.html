@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Cribbage Scoreboard</title>
+  <style>
+    :root {
+      --bg: #1f2933;
+      --panel: #111827;
+      --text: #f9fafb;
+      --muted: #cbd5e1;
+      --accent: #93c5fd;
+      --card-bg: rgba(255,255,255,.06);
+      --card-border: rgba(255,255,255,.1);
+      --input-bg: rgba(255,255,255,.08);
+      --btn-bg: rgba(255,255,255,.10);
+      --btn-border: rgba(255,255,255,.15);
+      --track-line: rgba(255,255,255,.12);
+      --track-tick: rgba(255,255,255,.25);
+      --success-bg: rgba(134,239,172,.15);
+      --success-border: rgba(134,239,172,.4);
+      --success-text: #86efac;
+      --danger-color: #fca5a5;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { display: flex; justify-content: center; padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom); }
+    main { width: min(100%, 720px); padding: 14px 0 22px; }
+    h1 { margin: 0 0 4px; font-size: clamp(1.4rem, 6vw, 2.1rem); line-height: 1; }
+    .sub { color: var(--muted); font-size: 0.95rem; margin-bottom: 16px; }
+    .panel { background: color-mix(in srgb, var(--panel) 92%, white); border: 1px solid var(--card-border); border-radius: 16px; padding: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+
+    .setup-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .setup-row label { color: var(--muted); font-size: .9rem; }
+    .seg-btn { height: 36px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--text); font: inherit; font-size: .95rem; cursor: pointer; }
+    .seg-btn.active { background: #2563eb; border-color: #2563eb; font-weight: 600; }
+    .seg-btn:active { transform: translateY(1px); }
+
+    .win-banner { display: none; background: var(--success-bg); border: 1px solid var(--success-border); border-radius: 12px; padding: 12px 16px; text-align: center; margin-bottom: 14px; color: var(--success-text); font-size: 1.2rem; font-weight: 600; }
+
+    .track-wrap { margin-bottom: 16px; }
+    .track-label { font-size: .8rem; color: var(--muted); margin-bottom: 5px; }
+    .track-svg { width: 100%; display: block; }
+
+    .player-cards { display: grid; gap: 10px; margin-bottom: 14px; }
+    .player-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 12px 14px; }
+    .player-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .peg-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+    .player-name-input {
+      border: none; background: transparent; font-size: 1rem; font-weight: 600;
+      color: var(--text); width: 130px; outline: none;
+      border-bottom: 1px solid rgba(255,255,255,.2); padding: 2px 0;
+    }
+    .score-display { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+    .score-num { font-size: 3rem; font-weight: 700; line-height: 1; min-width: 80px; }
+    .score-meta { font-size: .85rem; color: var(--muted); line-height: 1.5; }
+    .score-diff { color: #86efac; font-weight: 600; }
+    .btn-row { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+    .q-btn {
+      min-width: 38px; height: 38px; border-radius: 9px;
+      border: 1px solid var(--btn-border); background: var(--btn-bg);
+      color: var(--text); font: inherit; font-size: .9rem; cursor: pointer;
+    }
+    .q-btn:active { transform: translateY(1px); opacity: .8; }
+    .custom-row { display: flex; gap: 7px; align-items: center; }
+    .custom-input {
+      width: 60px; height: 36px; border-radius: 9px;
+      border: 1px solid var(--btn-border); background: var(--input-bg);
+      color: var(--text); font: inherit; font-size: .95rem; text-align: center;
+    }
+    .add-custom-btn {
+      height: 36px; padding: 0 14px; border-radius: 9px;
+      border: 1px solid var(--btn-border); background: var(--btn-bg);
+      color: var(--text); font: inherit; font-size: .9rem; cursor: pointer;
+    }
+    .add-custom-btn:active { transform: translateY(1px); }
+
+    .bottom-row { display: flex; gap: 8px; }
+    .ctrl-btn {
+      height: 40px; padding: 0 16px; border-radius: 10px;
+      border: 1px solid var(--btn-border); background: var(--btn-bg);
+      color: var(--text); font: inherit; font-size: .9rem; cursor: pointer;
+    }
+    .ctrl-btn.danger { color: var(--danger-color); border-color: rgba(252,165,165,.3); }
+    .ctrl-btn:active { transform: translateY(1px); }
+
+    @media (max-width: 480px) {
+      .score-num { font-size: 2.4rem; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Cribbage</h1>
+  <div class="sub">Scoreboard · race to 121</div>
+
+  <div class="panel">
+    <div id="win-banner" class="win-banner"></div>
+
+    <div class="setup-row">
+      <label>Players:</label>
+      <button class="seg-btn active" id="btn2" onclick="setPlayerCount(2)">2</button>
+      <button class="seg-btn" id="btn3" onclick="setPlayerCount(3)">3</button>
+    </div>
+
+    <div class="track-wrap">
+      <div class="track-label">Progress to 121</div>
+      <svg id="track-svg" class="track-svg"></svg>
+    </div>
+
+    <div class="player-cards" id="player-cards"></div>
+
+    <div class="bottom-row">
+      <button class="ctrl-btn" onclick="undoLast()">Undo last</button>
+      <button class="ctrl-btn danger" onclick="resetGame()">New game</button>
+    </div>
+  </div>
+</main>
+
+<script>
+(() => {
+  const GOAL = 121;
+  const COLORS = ['#378ADD', '#E24B4A', '#1D9E75'];
+  const QUICK = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15];
+
+  let numPlayers = 2;
+  let scores = [0, 0, 0];
+  let names = ['Player 1', 'Player 2', 'Player 3'];
+  let history = [];
+  let gameOver = false;
+
+  window.setPlayerCount = function(n) {
+    numPlayers = n;
+    document.getElementById('btn2').className = 'seg-btn' + (n === 2 ? ' active' : '');
+    document.getElementById('btn3').className = 'seg-btn' + (n === 3 ? ' active' : '');
+    scores = [0, 0, 0];
+    history = [];
+    gameOver = false;
+    document.getElementById('win-banner').style.display = 'none';
+    render();
+  };
+
+  window.addPoints = function(idx, pts) {
+    if (gameOver) return;
+    pts = parseInt(pts);
+    if (!pts || pts < 1) return;
+    history.push(scores.slice());
+    scores[idx] = Math.min(GOAL, scores[idx] + pts);
+    if (scores[idx] >= GOAL) {
+      gameOver = true;
+      const b = document.getElementById('win-banner');
+      b.style.display = 'block';
+      b.textContent = names[idx] + ' wins!';
+    }
+    render();
+  };
+
+  window.undoLast = function() {
+    if (!history.length) return;
+    scores = history.pop();
+    gameOver = false;
+    document.getElementById('win-banner').style.display = 'none';
+    render();
+  };
+
+  window.resetGame = function() {
+    scores = [0, 0, 0];
+    history = [];
+    gameOver = false;
+    document.getElementById('win-banner').style.display = 'none';
+    render();
+  };
+
+  window.updateName = function(idx, val) {
+    names[idx] = val || ('Player ' + (idx + 1));
+    drawTrack();
+  };
+
+  window.addCustom = function(idx) {
+    const el = document.getElementById('custom-' + idx);
+    addPoints(idx, el.value);
+    el.value = '';
+  };
+
+  function render() {
+    renderCards();
+    drawTrack();
+  }
+
+  function renderCards() {
+    const container = document.getElementById('player-cards');
+    container.style.gridTemplateColumns = numPlayers === 3
+      ? 'repeat(auto-fit, minmax(180px, 1fr))'
+      : 'repeat(2, 1fr)';
+    container.innerHTML = '';
+
+    for (let i = 0; i < numPlayers; i++) {
+      const prev = history.length ? history[history.length - 1][i] : null;
+      const diff = prev !== null ? scores[i] - prev : null;
+      const toGo = GOAL - scores[i];
+      const card = document.createElement('div');
+      card.className = 'player-card';
+      card.innerHTML = `
+        <div class="player-header">
+          <div class="peg-dot" style="background:${COLORS[i]}"></div>
+          <input class="player-name-input" value="${names[i]}"
+            oninput="updateName(${i}, this.value)"
+            onchange="updateName(${i}, this.value)" />
+        </div>
+        <div class="score-display">
+          <div class="score-num" style="color:${COLORS[i]}">${scores[i]}</div>
+          <div class="score-meta">
+            ${diff !== null && diff > 0 ? `<span class="score-diff">+${diff}</span><br>` : ''}
+            <span>${toGo > 0 ? toGo + ' to go' : 'Winner!'}</span>
+          </div>
+        </div>
+        <div class="btn-row">
+          ${QUICK.map(q => `<button class="q-btn" onclick="addPoints(${i},${q})">${q}</button>`).join('')}
+        </div>
+        <div class="custom-row">
+          <input class="custom-input" id="custom-${i}" type="number" min="1" max="29" placeholder="?" />
+          <button class="add-custom-btn" onclick="addCustom(${i})">Add</button>
+        </div>
+      `;
+      container.appendChild(card);
+    }
+  }
+
+  function drawTrack() {
+    const svg = document.getElementById('track-svg');
+    const W = svg.parentElement.offsetWidth || 640;
+    const rowH = 18;
+    const H = numPlayers * rowH + 10;
+    const gap = 6;
+    const slotW = (W - gap * 2) / GOAL;
+    const milestones = [30, 60, 90];
+
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('width', W);
+    svg.setAttribute('height', H);
+
+    let html = '';
+
+    for (let p = 0; p < numPlayers; p++) {
+      const y = 5 + p * rowH + rowH / 2;
+      html += `<line x1="${gap}" y1="${y}" x2="${W - gap}" y2="${y}" stroke="rgba(255,255,255,.12)" stroke-width="1.5" stroke-linecap="round"/>`;
+    }
+
+    for (const m of milestones) {
+      const mx = gap + m * slotW;
+      html += `<line x1="${mx}" y1="0" x2="${mx}" y2="${H - 10}" stroke="rgba(255,255,255,.2)" stroke-width="0.5" stroke-dasharray="2,2"/>`;
+      html += `<text x="${mx}" y="${H - 1}" text-anchor="middle" font-size="9" fill="rgba(255,255,255,.4)">${m}</text>`;
+    }
+    const ex = gap + GOAL * slotW;
+    html += `<text x="${ex}" y="${H - 1}" text-anchor="end" font-size="9" fill="rgba(255,255,255,.4)">121</text>`;
+
+    for (let p = 0; p < numPlayers; p++) {
+      const y = 5 + p * rowH + rowH / 2;
+      const pct = scores[p] / GOAL;
+      const cx = gap + scores[p] * slotW;
+      const r = 7;
+      html += `<circle cx="${Math.min(cx, W - gap - r)}" cy="${y}" r="${r}" fill="${COLORS[p]}"/>`;
+      if (scores[p] > 0) {
+        html += `<text x="${Math.min(cx, W - gap - r)}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="7" font-weight="600" fill="white">${scores[p]}</text>`;
+      }
+    }
+
+    svg.innerHTML = html;
+  }
+
+  render();
+  window.addEventListener('resize', drawTrack);
+})();
+</script>
+</body>
+</html>
