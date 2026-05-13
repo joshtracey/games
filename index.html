@@ -5,216 +5,126 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Games</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
       --bg: #0f1117;
       --surface: #181b24;
       --border: rgba(255,255,255,.08);
       --text: #f0ede8;
-      --muted: #7a8094;
-      --accent-go: #d97706;
-      --accent-bg: #2563eb;
-      --accent-crib: #16a34a;
+      --muted: #5a6070;
     }
-
     html, body {
-      min-height: 100%;
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'DM Sans', sans-serif;
-      font-weight: 300;
+      height: 100%; background: var(--bg); color: var(--text);
+      font-family: 'DM Sans', sans-serif; font-weight: 300;
     }
-
     body {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 0 20px 60px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 20px; min-height: 100%;
     }
+    .wrap { width: 100%; max-width: 680px; }
 
-    header {
-      width: 100%;
-      max-width: 760px;
-      padding: 64px 0 48px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 56px;
-    }
-
-    .eyebrow {
-      font-size: 11px;
-      letter-spacing: .18em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 16px;
-    }
-
+    header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 20px; }
     h1 {
-      font-family: 'Playfair Display', serif;
-      font-size: clamp(2.8rem, 8vw, 5rem);
-      font-weight: 700;
-      line-height: .95;
-      letter-spacing: -.02em;
-      color: var(--text);
+      font-family: 'Playfair Display', serif; font-weight: 700;
+      font-size: clamp(2rem, 7vw, 3rem); line-height: 1; letter-spacing: -.02em;
     }
-
-    h1 em {
-      font-style: italic;
-      color: var(--muted);
-    }
-
-    .subtitle {
-      margin-top: 20px;
-      font-size: .95rem;
-      color: var(--muted);
-      font-weight: 300;
-    }
+    h1 em { font-style: italic; font-weight: 400; color: var(--muted); }
+    .sub { font-size: .8rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
 
     .grid {
-      width: 100%;
-      max-width: 760px;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
     }
 
     .card {
-      display: block;
-      text-decoration: none;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 32px 28px 28px;
-      position: relative;
-      overflow: hidden;
+      display: flex; align-items: center; gap: 14px;
+      text-decoration: none; color: var(--text);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 16px;
       transition: border-color .2s, transform .2s;
+      position: relative; overflow: hidden;
     }
-
-    .card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 3px;
-      border-radius: 18px 18px 0 0;
+    .card::after {
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+      width: 3px; border-radius: 14px 0 0 14px;
     }
+    .card-go::after    { background: #d97706; }
+    .card-bg::after    { background: #2563eb; }
+    .card-crib::after  { background: #16a34a; }
+    .card-chess::after { background: #9333ea; }
+    .card-3xo::after   { background: #e84c4c; }
+    .card:hover { border-color: rgba(255,255,255,.18); transform: translateY(-2px); }
 
-    .card-go::before    { background: var(--accent-go); }
-    .card-bg::before    { background: var(--accent-bg); }
-    .card-crib::before  { background: var(--accent-crib); }
+    .icon { font-size: 1.6rem; line-height: 1; flex-shrink: 0; width: 32px; text-align: center; }
+    .info { min-width: 0; }
+    .game-name { font-family: 'Playfair Display', serif; font-size: 1.05rem; font-weight: 700; line-height: 1.1; }
+    .game-desc { font-size: .75rem; color: var(--muted); margin-top: 3px; line-height: 1.3; }
 
-    .card:hover {
-      border-color: rgba(255,255,255,.18);
-      transform: translateY(-3px);
+    .card-3xo { grid-column: span 2; }
+    .card-3xo .game-desc { max-width: 340px; }
+
+    footer { margin-top: 16px; font-size: .75rem; color: var(--muted); text-align: center; }
+
+    @media (max-width: 420px) {
+      .grid { grid-template-columns: 1fr; }
+      .card-3xo { grid-column: span 1; }
     }
-
-    .card-icon {
-      font-size: 2.4rem;
-      line-height: 1;
-      margin-bottom: 20px;
-      display: block;
-    }
-
-    .card-title {
-      font-family: 'Playfair Display', serif;
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--text);
-      margin-bottom: 8px;
-    }
-
-    .card-desc {
-      font-size: .88rem;
-      color: var(--muted);
-      line-height: 1.55;
-      font-weight: 300;
-    }
-
-    .card-tag {
-      display: inline-block;
-      margin-top: 20px;
-      font-size: .75rem;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      font-weight: 500;
-      padding: 4px 10px;
-      border-radius: 99px;
-    }
-
-    .card-go   .card-tag { background: rgba(217,119,6,.15);  color: #fbbf24; }
-    .card-bg   .card-tag { background: rgba(37,99,235,.15);  color: #93c5fd; }
-    .card-crib .card-tag { background: rgba(22,163,74,.15);  color: #86efac; }
-
-    .card-arrow {
-      position: absolute;
-      bottom: 28px; right: 28px;
-      font-size: 1.1rem;
-      color: var(--muted);
-      transition: color .2s, transform .2s;
-    }
-
-    .card:hover .card-arrow {
-      color: var(--text);
-      transform: translate(3px, -3px);
-    }
-
-    footer {
-      margin-top: 56px;
-      font-size: .8rem;
-      color: var(--muted);
-      text-align: center;
-    }
-
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(20px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    header { animation: fadeUp .5s ease both; }
-    .card:nth-child(1) { animation: fadeUp .5s .1s ease both; }
-    .card:nth-child(2) { animation: fadeUp .5s .2s ease both; }
-    .card:nth-child(3) { animation: fadeUp .5s .3s ease both; }
   </style>
 </head>
 <body>
+  <div class="wrap">
+    <header>
+      <h1>Classic <em>games</em></h1>
+      <span class="sub">Pass &amp; play</span>
+    </header>
 
-  <header>
-    <p class="eyebrow">Pass &amp; play</p>
-    <h1>Classic<br><em>games</em></h1>
-    <p class="subtitle">Three games for one device. No accounts, no ads.</p>
-  </header>
+    <div class="grid">
+      <a href="go/" class="card card-go">
+        <div class="icon">⬤</div>
+        <div class="info">
+          <div class="game-name">Go</div>
+          <div class="game-desc">9×9 · 13×13 · 19×19 strategy</div>
+        </div>
+      </a>
 
-  <div class="grid">
+      <a href="backgammon/" class="card card-bg">
+        <div class="icon">⬡</div>
+        <div class="info">
+          <div class="game-name">Backgammon</div>
+          <div class="game-desc">Race &amp; capture to home</div>
+        </div>
+      </a>
 
-    <a href="go/" class="card card-go">
-      <span class="card-icon">⬤</span>
-      <div class="card-title">Go</div>
-      <p class="card-desc">Ancient strategy game. 9×9, 13×13, or 19×19 board. Captures, ko, and area scoring with komi.</p>
-      <span class="card-tag">Strategy</span>
-      <span class="card-arrow">↗</span>
-    </a>
+      <a href="chess/" class="card card-chess">
+        <div class="icon">♟</div>
+        <div class="info">
+          <div class="game-name">Chess</div>
+          <div class="game-desc">Full rules · castling · en passant</div>
+        </div>
+      </a>
 
-    <a href="backgammon/" class="card card-bg">
-      <span class="card-icon">⬡</span>
-      <div class="card-title">Backgammon</div>
-      <p class="card-desc">Race your checkers home. Full rules: bar entry, hitting blots, and bearing off.</p>
-      <span class="card-tag">Race</span>
-      <span class="card-arrow">↗</span>
-    </a>
+      <a href="cribbage/" class="card card-crib">
+        <div class="icon">♣</div>
+        <div class="info">
+          <div class="game-name">Cribbage</div>
+          <div class="game-desc">Scoreboard · 2–3 players · 121</div>
+        </div>
+      </a>
 
-    <a href="cribbage/" class="card card-crib">
-      <span class="card-icon">♣</span>
-      <div class="card-title">Cribbage</div>
-      <p class="card-desc">Scoreboard for 2–3 players. Track pegs to 121 while you play with a real deck.</p>
-      <span class="card-tag">Scoreboard</span>
-      <span class="card-arrow">↗</span>
-    </a>
+      <a href="3xo/" class="card card-3xo">
+        <div class="icon">◎</div>
+        <div class="info">
+          <div class="game-name">3XO</div>
+          <div class="game-desc">Ring strategy · 2–4 players · stack, line, or escalate to win</div>
+        </div>
+      </a>
+    </div>
 
+    <footer>joshtracey.github.io/games · no accounts · no ads</footer>
   </div>
-
-  <footer>joshtracey.github.io/games</footer>
-
 </body>
 </html>
