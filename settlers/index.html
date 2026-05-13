@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Settlers Dice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #1a1008;
+      --surface: #221508;
+      --panel: #2a1c0a;
+      --border: rgba(255,220,120,.1);
+      --text: #f5e6c8;
+      --muted: #8a7455;
+      --accent: #d4a044;
+      --wood:  #8B4513;
+      --brick: #c0392b;
+      --grain: #f1c40f;
+      --wool:  #27ae60;
+      --ore:   #7f8c8d;
+      --gold:  #f39c12;
+      --road-col: #d4a044;
+      --settle-col: #e8d5a3;
+      --city-col: #93c5fd;
+      --dev-col: #c084fc;
+    }
+    *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-weight: 300; }
+    body { display: flex; justify-content: center; padding: env(safe-area-inset-top) 10px env(safe-area-inset-bottom); }
+    main { width: min(100%, 560px); padding: 16px 0 32px; }
+
+    h1 { font-family: 'Cinzel', serif; font-size: clamp(1.8rem,8vw,3rem); margin: 0 0 2px; letter-spacing: .04em; color: var(--accent); }
+    .tagline { color: var(--muted); font-size: .75rem; letter-spacing: .15em; text-transform: uppercase; margin-bottom: 16px; }
+
+    .panel {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 12px 14px; margin-bottom: 10px;
+    }
+    .panel-title { font-family: 'Cinzel', serif; font-size: .75rem; letter-spacing: .12em; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; }
+
+    /* Setup */
+    .setup-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+    .setup-label { font-size: .8rem; color: var(--muted); }
+    .seg { height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: .9rem; cursor: pointer; }
+    .seg.active { background: rgba(212,160,68,.2); border-color: var(--accent); color: var(--accent); }
+    .start-btn {
+      width: 100%; height: 44px; border-radius: 10px; border: 1px solid var(--accent);
+      background: rgba(212,160,68,.15); color: var(--accent);
+      font-family: 'Cinzel', serif; font-size: 1rem; letter-spacing: .08em; cursor: pointer;
+    }
+    .start-btn:active { background: rgba(212,160,68,.3); }
+
+    /* Turn bar */
+    .turn-bar {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 10px 14px; margin-bottom: 10px;
+    }
+    .turn-swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .turn-name { font-family: 'Cinzel', serif; font-size: 1.1rem; flex: 1; }
+    .turn-meta { font-size: .75rem; color: var(--muted); text-align: right; }
+
+    /* Scores strip */
+    .scores { display: grid; gap: 6px; margin-bottom: 10px; }
+    .score-row {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 8px 12px;
+    }
+    .score-row.active-row { border-color: rgba(212,160,68,.4); }
+    .score-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .score-pname { font-size: .85rem; flex: 1; }
+    .score-vp { font-family: 'Cinzel', serif; font-size: 1.1rem; color: var(--accent); min-width: 28px; text-align: right; }
+    .score-structs { display: flex; gap: 4px; flex-wrap: wrap; }
+    .struct-pip { font-size: .7rem; padding: 1px 5px; border-radius: 4px; border: 1px solid; opacity: .7; }
+
+    /* Dice area */
+    .dice-area { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; justify-content: center; }
+    .die-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+    .die-face {
+      width: 52px; height: 52px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; border: 2px solid rgba(255,255,255,.15);
+      transition: transform .1s, border-color .2s;
+      user-select: none;
+    }
+    .die-face.kept { border-color: var(--accent); box-shadow: 0 0 8px rgba(212,160,68,.4); }
+    .die-face:active { transform: scale(.93); }
+    .die-label { font-size: .6rem; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+
+    .roll-info { text-align: center; font-size: .8rem; color: var(--muted); margin-bottom: 10px; }
+
+    /* Resources collected */
+    .resources { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+    .res-chip {
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 9px; border-radius: 20px; font-size: .8rem; font-weight: 500;
+      border: 1px solid rgba(255,255,255,.15);
+    }
+
+    /* Build menu */
+    .build-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .build-btn {
+      border-radius: 10px; border: 1px solid var(--border);
+      background: rgba(255,255,255,.03); padding: 10px 12px;
+      text-align: left; cursor: pointer; transition: all .15s;
+      display: flex; flex-direction: column; gap: 3px;
+    }
+    .build-btn:active:not(:disabled) { transform: scale(.97); }
+    .build-btn:disabled { opacity: .35; cursor: default; }
+    .build-btn.affordable { border-color: rgba(212,160,68,.5); background: rgba(212,160,68,.06); }
+    .build-name { font-size: .85rem; font-weight: 500; color: var(--text); }
+    .build-cost { font-size: .7rem; color: var(--muted); }
+    .build-vp { font-size: .7rem; }
+
+    /* Buttons */
+    .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+    .btn {
+      flex: 1; height: 40px; border-radius: 10px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); font-family: 'DM Sans', sans-serif;
+      font-size: .85rem; cursor: pointer; transition: all .15s;
+    }
+    .btn.primary { border-color: var(--accent); color: var(--accent); background: rgba(212,160,68,.1); }
+    .btn.danger { color: #e84c4c; border-color: rgba(232,76,76,.25); }
+    .btn:active:not(:disabled) { transform: scale(.97); }
+    .btn:disabled { opacity: .3; cursor: default; }
+
+    .message { font-size: .82rem; color: var(--muted); min-height: 1.3em; margin-top: 6px; text-align: center; }
+
+    /* Win overlay */
+    .win-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.7); backdrop-filter: blur(6px);
+      align-items: center; justify-content: center; z-index: 100;
+      flex-direction: column; gap: 14px; text-align: center; padding: 20px;
+    }
+    .win-overlay.show { display: flex; }
+    .win-title { font-family: 'Cinzel', serif; font-size: clamp(2rem,10vw,4rem); color: var(--accent); }
+    .win-sub { color: var(--muted); font-size: .85rem; }
+    .win-btn {
+      height: 46px; padding: 0 28px; border-radius: 12px;
+      border: 1px solid var(--accent); background: rgba(212,160,68,.15);
+      color: var(--accent); font-family: 'Cinzel', serif; font-size: 1rem;
+      letter-spacing: .08em; cursor: pointer;
+    }
+
+    @media (max-width: 380px) {
+      .die-face { width: 44px; height: 44px; font-size: 1.2rem; }
+      .build-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Settlers Dice</h1>
+  <div class="tagline">A dice-building strategy game · 1–4 players</div>
+
+  <!-- Setup -->
+  <div id="setup-panel" class="panel">
+    <div class="panel-title">New Game</div>
+    <div class="setup-row">
+      <span class="setup-label">Players:</span>
+      <button class="seg active" onclick="setSP(1)">1</button>
+      <button class="seg" onclick="setSP(2)">2</button>
+      <button class="seg" onclick="setSP(3)">3</button>
+      <button class="seg" onclick="setSP(4)">4</button>
+    </div>
+    <div class="setup-row">
+      <span class="setup-label">Win at:</span>
+      <button class="seg" onclick="setVP(7)">7 VP</button>
+      <button class="seg active" onclick="setVP(10)">10 VP</button>
+      <button class="seg" onclick="setVP(13)">13 VP</button>
+    </div>
+    <div id="name-inputs" style="display:grid;gap:6px;margin-bottom:12px;"></div>
+    <button class="start-btn" onclick="startGame()">Begin Settlement</button>
+  </div>
+
+  <!-- Game -->
+  <div id="game-panel" style="display:none">
+    <div class="turn-bar">
+      <div class="turn-swatch" id="turn-swatch"></div>
+      <div class="turn-name" id="turn-name"></div>
+      <div class="turn-meta" id="turn-meta"></div>
+    </div>
+
+    <div class="scores" id="scores"></div>
+
+    <div class="panel">
+      <div class="panel-title">Dice — tap to keep, roll to reroll</div>
+      <div class="dice-area" id="dice-area"></div>
+      <div class="roll-info" id="roll-info"></div>
+      <div class="resources" id="resources"></div>
+      <div class="btn-row">
+        <button class="btn primary" id="roll-btn" onclick="rollDice()">Roll All</button>
+        <button class="btn" id="reroll-btn" onclick="rerollDice()" disabled>Reroll Free</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Build</div>
+      <div class="build-grid" id="build-grid"></div>
+      <div class="message" id="message"></div>
+    </div>
+
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn" onclick="endTurnManual()">End Turn</button>
+      <button class="btn danger" onclick="endGame()">New Game</button>
+    </div>
+  </div>
+</main>
+
+<div class="win-overlay" id="win-overlay">
+  <div class="win-title" id="win-title"></div>
+  <div class="win-sub" id="win-sub"></div>
+  <button class="win-btn" onclick="endGame()">Play Again</button>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+// ── Resources ──────────────────────────────────────────────────────────────
+const RES = ['wood','brick','grain','wool','ore','gold'];
+const RES_EMOJI = { wood:'🪵', brick:'🧱', grain:'🌾', wool:'🐑', ore:'⛏️', gold:'✨' };
+const RES_COLOR = { wood:'#8B4513', brick:'#c0392b', grain:'#d4a30a', wool:'#27ae60', ore:'#7f8c8d', gold:'#f39c12' };
+
+// ── Structures ─────────────────────────────────────────────────────────────
+const STRUCTS = [
+  {
+    id:'road', name:'Road', vp:0, bonus:'Longest Road (+2 VP)',
+    cost:{ wood:1, brick:1 },
+    max: 15, color:'#d4a044', desc:'Longest road ≥5 = +2 VP'
+  },
+  {
+    id:'settlement', name:'Settlement', vp:1,
+    cost:{ wood:1, brick:1, grain:1, wool:1 },
+    max: 5, color:'#e8d5a3', desc:'1 VP each'
+  },
+  {
+    id:'city', name:'City', vp:2,
+    cost:{ grain:2, ore:3 },
+    max: 4, color:'#93c5fd', desc:'2 VP, replaces settlement',
+    requires:'settlement'
+  },
+  {
+    id:'devcard', name:'Dev Card', vp:0,
+    cost:{ grain:1, wool:1, ore:1 },
+    max: 25, color:'#c084fc', desc:'Draw a dev card effect'
+  },
+];
+
+// Dev card effects (drawn randomly)
+const DEV_CARDS = [
+  { name:'Knight', effect:'knight', desc:'+1 Army point. Largest Army (≥3) = +2 VP' },
+  { name:'Knight', effect:'knight', desc:'+1 Army point. Largest Army (≥3) = +2 VP' },
+  { name:'Knight', effect:'knight', desc:'+1 Army point. Largest Army (≥3) = +2 VP' },
+  { name:'Knight', effect:'knight', desc:'+1 Army point. Largest Army (≥3) = +2 VP' },
+  { name:'Knight', effect:'knight', desc:'+1 Army point. Largest Army (≥3) = +2 VP' },
+  { name:'Victory Point', effect:'vp', desc:'+1 VP (secret until end)' },
+  { name:'Victory Point', effect:'vp', desc:'+1 VP (secret until end)' },
+  { name:'Victory Point', effect:'vp', desc:'+1 VP (secret until end)' },
+  { name:'Road Building', effect:'road2', desc:'Build 2 roads free' },
+  { name:'Road Building', effect:'road2', desc:'Build 2 roads free' },
+  { name:'Year of Plenty', effect:'yop', desc:'Gain any 2 resources' },
+  { name:'Year of Plenty', effect:'yop', desc:'Gain any 2 resources' },
+  { name:'Monopoly', effect:'mono', desc:'Gain 1 of every resource' },
+  { name:'Monopoly', effect:'mono', desc:'Gain 1 of every resource' },
+];
+
+const PLAYER_COLORS = ['#e84c4c','#4c9ee8','#f5c842','#4ce897'];
+const DEFAULT_NAMES = ['Red','Blue','Yellow','Green'];
+
+// ── State ──────────────────────────────────────────────────────────────────
+let setupPC = 1, winVP = 10;
+let players, turn, gameOver, devDeck;
+
+function playerVP(p) {
+  let vp = 0;
+  vp += p.built.settlement * 1;
+  vp += p.built.city * 2;
+  vp += p.devVP;
+  if (p.longestRoad) vp += 2;
+  if (p.largestArmy) vp += 2;
+  return vp;
+}
+
+function cur() { return players[turn]; }
+
+// Turn state
+let dice, kept, rollsLeft, phase; // phase: 'roll' | 'build'
+let hand; // current resource hand {wood,brick,...}
+
+// ── Setup ──────────────────────────────────────────────────────────────────
+window.setSP = function(n) {
+  setupPC = n;
+  document.querySelectorAll('.seg').forEach((b,i) => {
+    if (i < 4) b.classList.toggle('active', i+1 === n);
+  });
+  renderNameInputs();
+};
+
+window.setVP = function(v) {
+  winVP = v;
+  document.querySelectorAll('.seg').forEach((b,i) => {
+    if (i >= 4) b.classList.toggle('active', [7,10,13][i-4] === v);
+  });
+};
+
+function renderNameInputs() {
+  const el = document.getElementById('name-inputs');
+  el.innerHTML = '';
+  for (let i = 0; i < setupPC; i++) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px';
+    row.innerHTML = `
+      <div style="width:10px;height:10px;border-radius:50%;background:${PLAYER_COLORS[i]};flex-shrink:0"></div>
+      <input id="pn-${i}" value="${DEFAULT_NAMES[i]}" maxlength="14" style="flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,220,120,.1);border-radius:8px;padding:6px 10px;color:var(--text);font-family:inherit;font-size:.85rem;outline:none" />
+    `;
+    el.appendChild(row);
+  }
+}
+
+window.startGame = function() {
+  players = [];
+  for (let i = 0; i < setupPC; i++) {
+    const ni = document.getElementById('pn-'+i);
+    players.push({
+      name: ni ? ni.value.trim() || DEFAULT_NAMES[i] : DEFAULT_NAMES[i],
+      color: PLAYER_COLORS[i],
+      built: { road:0, settlement:0, city:0, devcard:0 },
+      devVP: 0,
+      knights: 0,
+      longestRoad: false,
+      largestArmy: false,
+    });
+  }
+  devDeck = shuffle(DEV_CARDS.slice());
+  turn = 0;
+  gameOver = false;
+  document.getElementById('setup-panel').style.display = 'none';
+  document.getElementById('game-panel').style.display = 'block';
+  document.getElementById('win-overlay').classList.remove('show');
+  startTurn();
+};
+
+window.endGame = function() {
+  document.getElementById('setup-panel').style.display = 'block';
+  document.getElementById('game-panel').style.display = 'none';
+  document.getElementById('win-overlay').classList.remove('show');
+  renderNameInputs();
+};
+
+// ── Turn flow ──────────────────────────────────────────────────────────────
+function startTurn() {
+  dice      = [0,0,0,0,0,0];
+  kept      = [false,false,false,false,false,false];
+  rollsLeft = 1; // one free reroll after initial roll
+  phase     = 'roll';
+  hand      = { wood:0, brick:0, grain:0, wool:0, ore:0, gold:0 };
+  setMsg('');
+  renderTurnBar();
+  renderScores();
+  renderDice();
+  renderResources();
+  renderBuild();
+  document.getElementById('roll-btn').textContent = 'Roll Dice';
+  document.getElementById('roll-btn').disabled = false;
+  document.getElementById('reroll-btn').disabled = true;
+  document.getElementById('reroll-btn').textContent = 'Reroll (1 left)';
+}
+
+window.rollDice = function() {
+  for (let i = 0; i < 6; i++) dice[i] = Math.floor(Math.random() * 6);
+  kept  = [false,false,false,false,false,false];
+  phase = 'build';
+  document.getElementById('roll-btn').disabled = true;
+  document.getElementById('reroll-btn').disabled = false;
+  document.getElementById('reroll-btn').textContent = 'Reroll (1 left)';
+  updateHand();
+  renderDice();
+  renderResources();
+  renderBuild();
+  setMsg('Tap dice to keep, then reroll the rest once.');
+};
+
+window.rerollDice = function() {
+  if (rollsLeft <= 0) return;
+  for (let i = 0; i < 6; i++) if (!kept[i]) dice[i] = Math.floor(Math.random() * 6);
+  rollsLeft--;
+  document.getElementById('reroll-btn').disabled = true;
+  document.getElementById('reroll-btn').textContent = 'Reroll used';
+  updateHand();
+  renderDice();
+  renderResources();
+  renderBuild();
+  setMsg('Reroll used. Build what you can or end your turn.');
+};
+
+function updateHand() {
+  hand = { wood:0, brick:0, grain:0, wool:0, ore:0, gold:0 };
+  for (const d of dice) hand[RES[d]]++;
+}
+
+window.toggleKeep = function toggleKeep(i) {
+  if (phase !== 'build' || rollsLeft <= 0) return;
+  kept[i] = !kept[i];
+  renderDice();
+}
+
+function updateRollInfo() {
+  document.getElementById('roll-info').textContent =
+    rollsLeft > 0 ? `${rollsLeft} reroll remaining` : 'No rerolls left';
+}
+
+// ── Build ──────────────────────────────────────────────────────────────────
+function canAfford(cost) {
+  const effective = { ...hand };
+  // Gold (wild) fills gaps
+  let golds = effective.gold || 0;
+  let needed = 0;
+  for (const [r, n] of Object.entries(cost)) {
+    const have = effective[r] || 0;
+    if (have < n) needed += n - have;
+  }
+  return needed <= golds;
+}
+
+function spend(cost) {
+  const eff = { ...hand };
+  let golds = eff.gold || 0;
+  for (const [r, n] of Object.entries(cost)) {
+    const have = eff[r] || 0;
+    if (have >= n) { eff[r] -= n; }
+    else { golds -= (n - have); eff[r] = 0; }
+  }
+  eff.gold = golds;
+  hand = eff;
+}
+
+window.build = function build(structId) {
+  const s = STRUCTS.find(x => x.id === structId);
+  const p = cur();
+
+  if (structId === 'city' && p.built.settlement === 0) {
+    return setMsg('Need a settlement to upgrade to a city.');
+  }
+  if (!canAfford(s.cost)) return setMsg('Not enough resources.');
+
+  spend(s.cost);
+
+  if (structId === 'city') {
+    p.built.city++;
+    p.built.settlement = Math.max(0, p.built.settlement - 1);
+  } else if (structId === 'devcard') {
+    if (devDeck.length === 0) return setMsg('Dev card deck is empty.');
+    const card = devDeck.pop();
+    applyDevCard(card, p);
+  } else {
+    p.built[structId]++;
+  }
+
+  // Longest road check
+  checkLongestRoad();
+  checkLargestArmy();
+
+  const vp = playerVP(p);
+  if (vp >= winVP) {
+    gameOver = true;
+    showWin(turn);
+    return;
+  }
+
+  setMsg(`Built ${s.name}!${structId==='devcard' ? ' Drew a card.' : ''}`);
+  renderResources();
+  renderBuild();
+  renderScores();
+}
+
+function applyDevCard(card, p) {
+  if (card.effect === 'vp') {
+    p.devVP++;
+    setMsg(`Drew: ${card.name} — ${card.desc}`);
+  } else if (card.effect === 'knight') {
+    p.knights++;
+    setMsg(`Drew: Knight! Army: ${p.knights}`);
+    checkLargestArmy();
+  } else if (card.effect === 'road2') {
+    p.built.road = Math.min(p.built.road + 2, STRUCTS.find(s=>s.id==='road').max);
+    setMsg('Drew: Road Building — 2 free roads!');
+    checkLongestRoad();
+  } else if (card.effect === 'yop') {
+    // Give 2 of a random resource
+    const r = RES[Math.floor(Math.random()*5)];
+    hand[r] = (hand[r]||0) + 2;
+    setMsg(`Drew: Year of Plenty — +2 ${RES_EMOJI[r]}!`);
+  } else if (card.effect === 'mono') {
+    for (const r of RES.slice(0,5)) hand[r] = (hand[r]||0) + 1;
+    setMsg('Drew: Monopoly — +1 of everything!');
+  }
+}
+
+function checkLongestRoad() {
+  // Longest road: player with most roads ≥5 gets +2 VP
+  let maxRoads = 4, holder = -1;
+  players.forEach((p,i) => {
+    if (p.built.road > maxRoads) { maxRoads = p.built.road; holder = i; }
+  });
+  players.forEach((p,i) => p.longestRoad = (i === holder));
+}
+
+function checkLargestArmy() {
+  let maxK = 2, holder = -1;
+  players.forEach((p,i) => {
+    if (p.knights > maxK) { maxK = p.knights; holder = i; }
+  });
+  players.forEach((p,i) => p.largestArmy = (i === holder));
+}
+
+window.endTurnManual = function() {
+  if (phase === 'roll') return setMsg('Roll the dice first.');
+  advanceTurn();
+};
+
+function advanceTurn() {
+  turn = (turn + 1) % players.length;
+  startTurn();
+}
+
+function showWin(idx) {
+  const p = players[idx];
+  document.getElementById('win-title').textContent = p.name + ' wins!';
+  document.getElementById('win-title').style.color = p.color;
+  const scores = players.map((pl,i) => `${pl.name}: ${playerVP(pl)} VP`).join(' · ');
+  document.getElementById('win-sub').textContent = scores;
+  document.getElementById('win-overlay').classList.add('show');
+}
+
+// ── Rendering ──────────────────────────────────────────────────────────────
+function renderTurnBar() {
+  const p = cur();
+  document.getElementById('turn-swatch').style.background = p.color;
+  document.getElementById('turn-name').textContent = p.name;
+  document.getElementById('turn-name').style.color = p.color;
+  document.getElementById('turn-meta').textContent = `${playerVP(p)} VP · Round ${Math.floor(turn/players.length)+1}`;
+}
+
+function renderScores() {
+  const el = document.getElementById('scores');
+  el.style.gridTemplateColumns = players.length <= 2 ? '1fr 1fr' : '1fr';
+  el.innerHTML = players.map((p,i) => {
+    const vp = playerVP(p);
+    const structs = [
+      p.built.road     ? `<span class="struct-pip" style="color:#d4a044;border-color:#d4a044">${p.built.road}🛤</span>` : '',
+      p.built.settlement ? `<span class="struct-pip" style="color:#e8d5a3;border-color:#e8d5a3">${p.built.settlement}🏠</span>` : '',
+      p.built.city     ? `<span class="struct-pip" style="color:#93c5fd;border-color:#93c5fd">${p.built.city}🏙</span>` : '',
+      p.knights        ? `<span class="struct-pip" style="color:#c084fc;border-color:#c084fc">${p.knights}⚔️</span>` : '',
+      p.longestRoad    ? `<span class="struct-pip" style="color:#d4a044;border-color:#d4a044">🛤+2</span>` : '',
+      p.largestArmy    ? `<span class="struct-pip" style="color:#c084fc;border-color:#c084fc">⚔+2</span>` : '',
+    ].filter(Boolean).join('');
+    return `<div class="score-row ${i===turn?'active-row':''}">
+      <div class="score-dot" style="background:${p.color}"></div>
+      <div class="score-pname">${p.name}</div>
+      <div class="score-structs">${structs}</div>
+      <div class="score-vp" style="color:${p.color}">${vp}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderDice() {
+  const el = document.getElementById('dice-area');
+  el.innerHTML = '';
+  dice.forEach((d, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'die-wrap';
+    wrap.onclick = () => toggleKeep(i);
+
+    const face = document.createElement('div');
+    face.className = 'die-face' + (kept[i] ? ' kept' : '');
+    face.style.background = phase === 'roll' ? 'rgba(255,255,255,.05)' : RES_COLOR[RES[d]] + '33';
+    face.textContent = phase === 'roll' ? '?' : RES_EMOJI[RES[d]];
+
+    const lbl = document.createElement('div');
+    lbl.className = 'die-label';
+    lbl.textContent = phase === 'roll' ? '' : RES[d];
+
+    wrap.appendChild(face);
+    wrap.appendChild(lbl);
+    el.appendChild(wrap);
+  });
+}
+
+function renderResources() {
+  const el = document.getElementById('resources');
+  if (phase === 'roll') { el.innerHTML = ''; return; }
+  const chips = RES.filter(r => hand[r] > 0).map(r =>
+    `<div class="res-chip" style="background:${RES_COLOR[r]}22;border-color:${RES_COLOR[r]}55;color:${r==='grain'?'#f1c40f':r==='ore'?'#aaa':'var(--text)'}">
+      ${RES_EMOJI[r]} ${hand[r]}
+    </div>`
+  ).join('');
+  el.innerHTML = chips || '<span style="font-size:.8rem;color:var(--muted)">No resources yet</span>';
+}
+
+function renderBuild() {
+  const el = document.getElementById('build-grid');
+  el.innerHTML = STRUCTS.map(s => {
+    const affordable = phase === 'build' && canAfford(s.cost);
+    const p = cur();
+    const atMax = s.id !== 'devcard' && p.built[s.id] >= s.max;
+    const needsSettlement = s.id === 'city' && p.built.settlement === 0;
+    const disabled = !affordable || atMax || needsSettlement || phase === 'roll';
+    const costStr = Object.entries(s.cost).map(([r,n]) => `${n}${RES_EMOJI[r]}`).join(' ');
+    const built = s.id !== 'devcard' ? ` · ${p.built[s.id]}/${s.max} built` : '';
+    return `<button class="build-btn ${affordable&&!disabled?'affordable':''}" onclick="build('${s.id}')" ${disabled?'disabled':''}>
+      <div class="build-name" style="color:${s.color}">${s.name}${s.vp?' +'+s.vp+'VP':''}</div>
+      <div class="build-cost">${costStr}</div>
+      <div class="build-vp" style="color:var(--muted)">${s.desc}${built}</div>
+    </button>`;
+  }).join('');
+}
+
+function setMsg(t) { document.getElementById('message').textContent = t; }
+
+function shuffle(arr) {
+  for (let i = arr.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
+}
+
+// Init setup
+renderNameInputs();
+document.querySelectorAll('.seg').forEach((b,i) => {
+  if (i >= 4) b.classList.toggle('active', [7,10,13][i-4] === winVP);
+});
+})();
+</script>
+</body>
+</html>
