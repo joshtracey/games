@@ -223,8 +223,10 @@ function canMove(player, brd) {
 
 function checkWin(brd, justMoved) {
   const opp = justMoved === W ? B : W;
-  if (piecesOf(opp, brd) < 3) return justMoved;
-  if (phase !== 'place' && !canMove(opp, brd)) return justMoved;
+  const placingDone = toPlace[W] === 0 && toPlace[B] === 0;
+  // Only check piece count win once all pieces have been placed
+  if (placingDone && piecesOf(opp, brd) < 3) return justMoved;
+  if (placingDone && !canMove(opp, brd)) return justMoved;
   return null;
 }
 
