@@ -475,9 +475,10 @@
 
         // Piece
         if (board[s]) {
-          const glyph = GLYPHS[board[s]];
           const isW = color(board[s]) === W;
-          ctx.font = `${sq * 0.72}px serif`;
+          const isPawn = type(board[s]) === P;
+          const glyph = GLYPHS[board[s]];
+          ctx.font = `${sq * (isPawn ? 0.58 : 0.72)}px serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.strokeStyle = isW ? '#666' : '#ccc';
