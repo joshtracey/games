@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rules — Games</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117; --surface: #181b24; --border: rgba(255,255,255,.08);
+      --text: #f0ede8; --muted: #5a6070; --accent: #93c5fd;
+    }
+    html, body {
+      min-height: 100%; background: var(--bg); color: var(--text);
+      font-family: 'DM Sans', sans-serif; font-weight: 300; line-height: 1.6;
+    }
+    body { display: flex; flex-direction: column; align-items: center; padding: 20px; }
+    .wrap { width: 100%; max-width: 680px; padding-bottom: 40px; }
+
+    .back {
+      display: inline-flex; align-items: center; gap: 6px;
+      text-decoration: none; color: var(--muted); font-size: .85rem;
+      margin-bottom: 24px; transition: color .15s;
+    }
+    .back:hover { color: var(--text); }
+
+    h1 {
+      font-family: 'Playfair Display', serif; font-weight: 700;
+      font-size: clamp(1.8rem,6vw,2.8rem); letter-spacing: -.02em;
+      margin-bottom: 6px;
+    }
+    .page-sub { color: var(--muted); font-size: .85rem; margin-bottom: 32px; }
+
+    /* Nav */
+    .nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 32px; }
+    .nav a {
+      padding: 5px 12px; border-radius: 99px;
+      border: 1px solid var(--border); background: var(--surface);
+      text-decoration: none; color: var(--muted); font-size: .78rem;
+      transition: all .15s;
+    }
+    .nav a:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
+
+    /* Game sections */
+    .game-section {
+      margin-bottom: 36px; padding-bottom: 36px;
+      border-bottom: 1px solid var(--border);
+    }
+    .game-section:last-child { border-bottom: none; }
+
+    .game-header {
+      display: flex; align-items: center; gap: 14px; margin-bottom: 16px;
+    }
+    .game-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; flex-shrink: 0;
+    }
+    .game-title-wrap { flex: 1; }
+    .game-title {
+      font-family: 'Playfair Display', serif; font-weight: 700;
+      font-size: 1.4rem; line-height: 1.1;
+    }
+    .game-meta { font-size: .75rem; color: var(--muted); margin-top: 2px; }
+    .play-link {
+      padding: 7px 14px; border-radius: 99px; font-size: .78rem;
+      text-decoration: none; color: var(--accent);
+      border: 1px solid rgba(147,197,253,.25); background: rgba(147,197,253,.06);
+      transition: all .15s; white-space: nowrap;
+    }
+    .play-link:hover { background: rgba(147,197,253,.14); }
+
+    h3 {
+      font-size: .7rem; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--muted); margin: 14px 0 6px; font-weight: 500;
+    }
+    p { font-size: .9rem; color: #c8c4bc; margin-bottom: 8px; }
+    ul { padding-left: 1.2em; margin-bottom: 8px; }
+    li { font-size: .9rem; color: #c8c4bc; margin-bottom: 3px; }
+    strong { color: var(--text); font-weight: 500; }
+
+    .tip {
+      background: var(--surface); border: 1px solid var(--border);
+      border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0;
+      padding: 10px 14px; margin-top: 10px; font-size: .85rem; color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <a href="../" class="back">← Back to games</a>
+
+  <h1>Rules &amp; Instructions</h1>
+  <p class="page-sub">Quick reference for all nine games.</p>
+
+  <nav class="nav">
+    <a href="#go">Go</a>
+    <a href="#backgammon">Backgammon</a>
+    <a href="#chess">Chess</a>
+    <a href="#cribbage">Cribbage</a>
+    <a href="#3xo">3XO</a>
+    <a href="#blokus">Blokus</a>
+    <a href="#reversi">Reversi</a>
+    <a href="#morris">Nine Men's Morris</a>
+    <a href="#settlers">Settlers Dice</a>
+  </nav>
+
+  <!-- GO -->
+  <div class="game-section" id="go">
+    <div class="game-header">
+      <div class="game-icon">⬤</div>
+      <div class="game-title-wrap">
+        <div class="game-title">Go</div>
+        <div class="game-meta">2 players · 9×9, 13×13, or 19×19 board</div>
+      </div>
+      <a href="../go/" class="play-link">Play →</a>
+    </div>
+    <h3>Objective</h3>
+    <p>Control more territory than your opponent by surrounding empty intersections with your stones.</p>
+    <h3>Setup</h3>
+    <p>Black goes first. Choose board size (9×9 for beginners, 19×19 for full game) and komi (points added to White's score to offset Black's first-move advantage — 6.5 is standard).</p>
+    <h3>How to play</h3>
+    <ul>
+      <li>On your turn, place a stone on any empty intersection.</li>
+      <li><strong>Capture:</strong> A stone or group with no liberties (adjacent empty points) is removed from the board.</li>
+      <li><strong>Ko rule:</strong> You may not recreate the exact board position from the previous move.</li>
+      <li><strong>Suicide:</strong> You may not place a stone that would have zero liberties after capture resolution.</li>
+      <li>Pass your turn at any time. Two consecutive passes end the game.</li>
+    </ul>
+    <h3>Scoring</h3>
+    <p>Area scoring: count your stones on the board plus empty intersections completely surrounded by your stones. White adds komi. Highest score wins.</p>
+    <div class="tip">💡 Beginners: start on 9×9 to learn capture and territory basics before moving to larger boards.</div>
+  </div>
+
+  <!-- BACKGAMMON -->
+  <div class="game-section" id="backgammon">
+    <div class="game-header">
+      <div class="game-icon">⬡</div>
+      <div class="game-title-wrap">
+        <div class="game-title">Backgammon</div>
+        <div class="game-meta">2 players · 15 checkers each · 24 points</div>
+      </div>
+      <a href="../backgammon/" class="play-link">Play →</a>
+    </div>
+    <h3>Objective</h3>
+    <p>Be the first to move all 15 of your checkers off the board.</p>
+    <h3>Direction</h3>
+    <p><strong>White</strong> moves from point 1 toward point 24 (bearing off top-left). <strong>Black</strong> moves from point 24 toward point 1 (bearing off bottom-left).</p>
+    <h3>How to play</h3>
+    <ul>
+      <li>Roll two dice. Move your checkers the shown number of points — one checker per die, or one checker the combined total.</li>
+      <li><strong>Doubles</strong> give you four moves of that number.</li>
+      <li>You may not land on a point occupied by 2+ opponent checkers.</li>
+      <li><strong>Blot:</strong> Landing on a single opponent checker sends it to the bar.</li>
+      <li><strong>Bar:</strong> Any checker on the bar must re-enter the board before other moves. White enters on points 19–24; Black on points 1–6.</li>
+    </ul>
+    <h3>Bearing off</h3>
+    <p>Once all your checkers are in your home board (points 1–6 for White, 19–24 for Black), start bearing off. Roll a die — remove a checker from that exact point. If that point is empty, move a checker from a higher point, or bear off the highest occupied point on an overshoot.</p>
+    <div class="tip">💡 The doubling cube is not included — this is a straight race game.</div>
+  </div>
+
+  <!-- CHESS -->
+  <div class="game-section" id="chess">
+    <div class="game-header">
+      <div class="game-icon">♟</div>
+      <div class="game-title-wrap">
+        <div class="game-title">Chess</div>
+        <div class="game-meta">2 players · 8×8 board · full rules</div>
+      </div>
+      <a href="../chess/" class="play-link">Play →</a>
+    </div>
+    <h3>Objective</h3>
+    <p>Checkmate your opponent's King — put it under attack with no legal escape.</p>
+    <h3>Pieces</h3>
+    <ul>
+      <li><strong>King (♔):</strong> One square any direction. Cannot move into check.</li>
+      <li><strong>Queen (♕):</strong> Any number of squares in any direction.</li>
+      <li><strong>Rook (♖):</strong> Any number of squares horizontally or vertically.</li>
+      <li><strong>Bishop (♗):</strong> Any number of squares diagonally.</li>
+      <li><strong>Knight (♘):</strong> L-shape (2+1 squares). Jumps over pieces.</li>
+      <li><strong>Pawn (♙):</strong> Moves forward one square (two from starting row). Captures diagonally.</li>
+    </ul>
+    <h3>Special moves</h3>
+    <ul>
+      <li><strong>Castling:</strong> King moves two squares toward a rook; rook jumps to the other side. Neither may have moved, no pieces between them, and the King may not pass through check.</li>
+      <li><strong>En passant:</strong> If an opponent pawn advances two squares past your pawn, you may capture it as if it moved only one square. Must be done immediately.</li>
+      <li><strong>Promotion:</strong> A pawn reaching the last rank promotes to Queen, Rook, Bishop, or Knight.</li>
+    </ul>
+    <h3>End of game</h3>
+    <p><strong>Checkmate:</strong> King in check with no legal moves — opponent wins. <strong>Stalemate:</strong> No legal moves but not in check — draw.</p>
+  </div>
+
+  <!-- CRIBBAGE -->
+  <div class="game-section" id="cribbage">
+    <div class="game-header">
+      <div class="game-icon">♣</div>
+      <div class="game-title-wrap">
+        <div class="game-title">Cribbage</div>
+        <div class="game-meta">2–3 players · scorekeeper · needs a real deck</div>
+      </div>
+      <a href="../cribbage/" class="play-link">Open scorekeeper →</a>
+    </div>
+    <h3>What this app does</h3>
+    <p>This is a digital scoreboard only — you play cribbage with a real deck of cards and use this to track pegs to 121.</p>
+    <h3>Quick rules reminder</h3>
+    <ul>
+      <li>Each player is dealt 6 cards (5 in 3-player); 2 are discarded to the crib.</li>
+      <li><strong>Pegging:</strong> Play cards alternately, calling the running total. Score for 15 (2pts), pairs (2pts), runs, and 31 (2pts) or "go" (1pt).</li>
+      <li><strong>Counting hand:</strong> Score pairs, 15s, runs, flush (4+ same suit), and nobs (jack matching starter suit).</li>
+      <li><strong>Crib:</strong> Dealer scores the crib as an extra hand.</li>
+      <li><strong>Win:</strong> First to 121 points.</li>
+    </ul>
+    <div class="tip">💡 Common point values: Pair=2, 15=2, Run of 3=3, Flush of 4=4, Nobs=1, Nibs=2.</div>
+  </div>
+
+  <!-- 3XO -->
+  <div class="game-section" id="3xo">
+    <div class="game-header">
+      <div class="game-icon">◎</div>
+      <div class="game-title-wrap">
+        <div class="game-title">3XO</div>
+        <div class="game-meta">2–4 players · 3×3 grid · ring strategy</div>
+      </div>
+      <a href="../3xo/" class="play-link">Play →</a>
+    </div>
+    <h3>Objective</h3>
+    <p>Be the first player to complete one of the three winning patterns.</p>
+    <h3>Setup</h3>
+    <p>Each player has 9 rings: 3 Small, 3 Medium, 3 Large. The board is a 3×3 grid. Each cell can hold one ring of each size, nested concentrically.</p>
+    <h3>How to play</h3>
+    <ul>
+      <li>On your turn, select a ring size from your tray, then tap a cell to place it.</li>
+      <li>You may only place a size in a cell if that size slot is not already occupied.</li>
+    </ul>
+    <h3>Win conditions</h3>
+    <ul>
+      <li><strong>Same size, same color:</strong> Three of your rings of the same size in a row, column, or diagonal.</li>
+      <li><strong>Escalating line:</strong> One Small, one Medium, and one Large ring — all yours — across a row, column, or diagonal (any order).</li>
+      <li><strong>Full stack:</strong> All three sizes (S+M+L) in a single cell, all placed by you.</li>
+    </ul>
+  </div>
+
+  <!-- BLOKUS -->
+  <div class="game-section" id="blokus">
+    <div class="game-header">
+      <div class="game-icon">▦</div>
+      <div class="game-title-wrap">
+        <div class="game-title">Blokus</div>
+        <div class="game-meta">4 players · 20×20 board · 21 pieces each</div>
+      </div>
+      <a href="../blokus/" class="play-link">Play →</a>
+    </div>
+    <h3>Objective</h3>
+    <p>Place as many of your 21 polyomino pieces on the board as possible. Fewest squares remaining wins (or most squares placed).</p>
+    <h3>How to play</h3>
+    <ul>
+      <li>Your <strong>first piece</strong> must cover your starting corner of the board.</li>
+      <li>Each subsequent piece must touch at least one of your own pieces <strong>corner-to-corner</strong>.</li>
+      <li>Your pieces may <strong>never touch your own pieces edge-to-edge</strong> — only diagonally.</li>
+      <li>Opponent pieces may touch your pieces on any side.</li>
+      <li>Pieces can be rotated and flipped before placing.</li>
+    </ul>
+    <h3>End of game</h3>
+    <p>When no player can place any more pieces, the game ends. Score = number of squares successfully placed. Highest score wins.</p>
+    <div class="tip">💡 The 1-square monomino is your most flexible piece — save it for tight spots late in the game.</div>
+  </div>
+
+  <!-- REVERSI -->
+  <div class="game-section" id="reversi">
+    <div class="game-header">
+      <div class="game-icon">⊙</div>
+      <div class="game-title-wrap">
+        <div class="game-title">Reversi</div>
+        <div class="game-meta">2 players · 8×8 board</div>
+      </div>
+      <a href="../reversi/" class="play-link">Play →</a>
+    </div>
+    <h3>Objective</h3>
+    <p>Have the most pieces of your color on the board when the game ends.</p>
+    <h3>Setup</h3>
+    <p>Four pieces in the centre: two Black, two White arranged diagonally. Black moves first.</p>
+    <h3>How to play</h3>
+    <ul>
+      <li>Place a piece on any empty square that <strong>flanks</strong> at least one straight line of opponent pieces, with your own piece at the other end.</li>
+      <li>All flanked opponent pieces (horizontal, vertical, or diagonal) flip to your color.</li>
+      <li>If you have no legal move, your turn is skipped.</li>
+    </ul>
+    <h3>End of game</h3>
+    <p>When neither player can move (board full or no legal moves), count pieces. Most pieces wins.</p>
+    <div class="tip">💡 Corners are extremely valuable — a corner piece can never be flipped.</div>
+  </div>
+
+  <!-- NINE MEN'S MORRIS -->
+  <div class="game-section" id="morris">
+    <div class="game-header">
+      <div class="game-icon">✦</div>
+      <div class="game-title-wrap">
+        <div class="game-title">Nine Men's Morris</div>
+        <div class="game-meta">2 players · 24 points · 9 pieces each</div>
+      </div>
+      <a href="../9menmorris/" class="play-link">Play →</a>
+    </div>
+    <h3>Objective</h3>
+    <p>Reduce your opponent to 2 pieces, or leave them with no legal moves.</p>
+    <h3>Phase 1 — Placing</h3>
+    <p>Take turns placing one piece per turn on any empty point. Forming a <strong>mill</strong> (3 in a straight line) lets you remove any one opponent piece. You cannot remove a piece that is part of a mill unless no other pieces are available.</p>
+    <h3>Phase 2 — Moving</h3>
+    <p>Once all pieces are placed, take turns sliding one piece to an adjacent connected empty point. Forming a mill again lets you remove an opponent piece. A mill can be broken and reformed for repeated captures.</p>
+    <h3>Phase 3 — Flying</h3>
+    <p>When a player is reduced to exactly 3 pieces, they may <strong>fly</strong> — jumping any piece to any empty point on the board.</p>
+    <h3>End of game</h3>
+    <p>A player loses when they are reduced to 2 pieces, or when they have no legal moves on their turn.</p>
+    <div class="tip">💡 The most powerful strategy is to create two mills that share a piece — sliding it back and forth removes an opponent piece every turn.</div>
+  </div>
+
+  <!-- SETTLERS DICE -->
+  <div class="game-section" id="settlers">
+    <div class="game-header">
+      <div class="game-icon">⚄</div>
+      <div class="game-title-wrap">
+        <div class="game-title">Settlers Dice</div>
+        <div class="game-meta">1–4 players · Catan-inspired dice building</div>
+      </div>
+      <a href="../settlers-dice/" class="play-link">Play →</a>
+    </div>
+    <h3>Objective</h3>
+    <p>Be the first player to reach the target Victory Points (default 10) by building structures.</p>
+    <h3>On your turn</h3>
+    <ul>
+      <li><strong>Roll</strong> all 6 resource dice — each face shows a resource: 🪵 Wood, 🧱 Brick, 🌾 Grain, 🐑 Wool, ⛏️ Ore, or ✨ Gold (wild).</li>
+      <li><strong>Keep</strong> any dice by tapping them, then use your one free <strong>Reroll</strong> on the rest.</li>
+      <li><strong>Build</strong> by spending the matching resources shown on your dice.</li>
+    </ul>
+    <h3>Structures</h3>
+    <ul>
+      <li><strong>Road</strong> (🪵+🧱): No VP. Build 5+ for Longest Road (+2 VP).</li>
+      <li><strong>Settlement</strong> (🪵+🧱+🌾+🐑): 1 VP each. Max 5.</li>
+      <li><strong>City</strong> (🌾🌾+⛏️⛏️⛏️): 2 VP, replaces a settlement. Max 4.</li>
+      <li><strong>Dev Card</strong> (🌾+🐑+⛏️): Draw a random card — Knight, Victory Point, Road Building, Year of Plenty, or Monopoly.</li>
+    </ul>
+    <h3>Special awards</h3>
+    <ul>
+      <li><strong>Longest Road:</strong> First player with 5+ roads gets +2 VP. Stolen if another player builds more.</li>
+      <li><strong>Largest Army:</strong> First player with 3+ Knight cards gets +2 VP. Stolen if surpassed.</li>
+    </ul>
+    <div class="tip">💡 Gold (✨) is a wild resource — it fills in any missing resource when building.</div>
+  </div>
+
+</div>
+</body>
+</html>
