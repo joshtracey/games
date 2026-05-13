@@ -158,16 +158,16 @@
     /* Win overlay */
     .win-overlay {
       display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,.8); backdrop-filter: blur(6px);
+      background: rgba(0,0,0,.45); backdrop-filter: blur(2px);
       align-items: center; justify-content: center; z-index: 100;
       flex-direction: column; gap: 16px; text-align: center; padding: 20px;
     }
     .win-overlay.show { display: flex; }
-    .win-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(3rem,12vw,5rem); letter-spacing: .06em; }
+    .win-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(3rem,12vw,5rem); letter-spacing: .06em; text-shadow: 0 2px 12px rgba(0,0,0,.8); }
     .win-sub { color: var(--muted); font-size: .85rem; }
     .win-btn {
       height: 48px; padding: 0 32px; border-radius: 12px; border: 1px solid rgba(255,255,255,.2);
-      background: rgba(255,255,255,.08); color: var(--text);
+      background: rgba(15,15,20,.9); color: var(--text);
       font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: .1em;
       cursor: pointer; transition: background .15s;
     }
