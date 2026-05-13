@@ -31,7 +31,9 @@
     .stat span { display: block; margin-top: 4px; font-size: 1rem; }
     .captured { font-size: .85rem; color: var(--muted); min-height: 1.2em; margin-bottom: 8px; }
     .board-wrap { width: 100%; aspect-ratio: 1/1; position: relative; border-radius: 4px; overflow: hidden; touch-action: manipulation; user-select: none; }
-    canvas { display: block; width: 100%; height: 100%; cursor: pointer; }
+    canvas { display: block; width: 100%; height: 100%; cursor: pointer; position: absolute; top:0; left:0; }
+    #piece-layer { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+    #piece-layer img { position: absolute; pointer-events: none; }
     .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
     button { border: 0; border-radius: 12px; min-height: 44px; padding: 10px 12px; font: inherit; color: var(--text); background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.12); cursor: pointer; }
     button:active { transform: translateY(1px); }
@@ -54,7 +56,7 @@
     .promo-box { background: #1f2933; border: 1px solid rgba(255,255,255,.2); border-radius: 14px; padding: 20px; text-align: center; }
     .promo-box p { margin: 0 0 14px; font-size: 1rem; color: var(--text); }
     .promo-btns { display: flex; gap: 10px; justify-content: center; }
-    .promo-btns button { font-size: 1.6rem; min-width: 56px; min-height: 56px; border-radius: 10px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); }
+    .promo-btns button { font-size: .9rem; min-width: 64px; min-height: 44px; border-radius: 10px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); color: var(--text); }
     .promo-btns button:hover { background: rgba(255,255,255,.2); }
   </style>
 </head>
@@ -70,14 +72,15 @@
     <div class="captured" id="captured-white"></div>
     <div class="board-wrap">
       <canvas id="board" aria-label="Chess board"></canvas>
+      <div id="piece-layer"></div>
       <div class="promo-overlay" id="promo-overlay">
         <div class="promo-box">
           <p>Promote pawn to:</p>
           <div class="promo-btns">
-            <button id="promo-q">♛</button>
-            <button id="promo-r">♜</button>
-            <button id="promo-b">♝</button>
-            <button id="promo-n">♞</button>
+            <button id="promo-q">Queen</button>
+            <button id="promo-r">Rook</button>
+            <button id="promo-b">Bishop</button>
+            <button id="promo-n">Knight</button>
           </div>
         </div>
       </div>
@@ -384,13 +387,7 @@
 
   function showPromo(m, forColor) {
     pendingPromo = m;
-    const overlay = document.getElementById('promo-overlay');
-    overlay.classList.add('show');
-    const isWhite = forColor === W;
-    document.getElementById('promo-q').textContent = isWhite ? '♛' : '♛';
-    document.getElementById('promo-r').textContent = isWhite ? '♜' : '♜';
-    document.getElementById('promo-b').textContent = isWhite ? '♝' : '♝';
-    document.getElementById('promo-n').textContent = isWhite ? '♞' : '♞';
+    document.getElementById('promo-overlay').classList.add('show');
   }
 
   function resolvePromo(pt) {
@@ -411,12 +408,39 @@
   const canvas = document.getElementById('board');
   const ctx    = canvas.getContext('2d');
 
-  // Unicode pieces: white pieces, black pieces
-  // Use filled (black) glyphs for both sides — fill color distinguishes teams
-  const GLYPHS = {
-    [WK]:'♚', [WQ]:'♛', [WR]:'♜', [WB]:'♝', [WN]:'♞', [WP]:'♟',
-    [BK]:'♚', [BQ]:'♛', [BR]:'♜', [BB]:'♝', [BN]:'♞', [BP]:'♟',
+  // ── Piece images — Wikipedia Cburnett SVGs (public domain) ───────────────
+  const PIECE_URLS = {
+    [WK]: 'https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg',
+    [WQ]: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg',
+    [WR]: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
+    [WB]: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg',
+    [WN]: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg',
+    [WP]: 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
+    [BK]: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg',
+    [BQ]: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg',
+    [BR]: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg',
+    [BB]: 'https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg',
+    [BN]: 'https://upload.wikimedia.org/wikipedia/commons/e/ef/Chess_ndt45.svg',
+    [BP]: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg',
   };
+
+  function updatePieceLayer() {
+    const layer = document.getElementById('piece-layer');
+    const sq    = layer.parentElement.offsetWidth / 8;
+    const pad   = sq * 0.05;
+    const psz   = sq - pad * 2;
+    layer.innerHTML = '';
+    for (let r = 0; r < 8; r++) {
+      for (let f = 0; f < 8; f++) {
+        const p = board[rc(r, f)];
+        if (!p) continue;
+        const img = document.createElement('img');
+        img.src          = PIECE_URLS[p];
+        img.style.cssText = `left:${f*sq+pad}px;top:${r*sq+pad}px;width:${psz}px;height:${psz}px`;
+        layer.appendChild(img);
+      }
+    }
+  }
 
   function draw() {
     const rect = canvas.getBoundingClientRect();
@@ -473,21 +497,6 @@
           }
         }
 
-        // Piece
-        if (board[s]) {
-          const isW = color(board[s]) === W;
-          const isPawn = type(board[s]) === P;
-          const glyph = GLYPHS[board[s]];
-          ctx.font = `${sq * (isPawn ? 0.58 : 0.72)}px serif`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.strokeStyle = isW ? '#666' : '#ccc';
-          ctx.lineWidth = sq * 0.04;
-          ctx.strokeText(glyph, x + sq/2, y + sq/2);
-          ctx.fillStyle = isW ? '#ffffff' : '#1a1a1a';
-          ctx.fillText(glyph, x + sq/2, y + sq/2);
-        }
-
         // Rank/file labels
         ctx.font = `bold ${sq * 0.18}px system-ui`;
         ctx.textAlign = 'left';
@@ -504,6 +513,7 @@
         }
       }
     }
+    updatePieceLayer();
   }
 
   // ── interaction ───────────────────────────────────────────────────────────
@@ -555,15 +565,13 @@
   const msgEl = document.getElementById('message');
   function setMsg(t) { msgEl.textContent = t; }
 
-  const PIECE_NAMES = {
-    [P]:'P',[N]:'N',[B_]:'B',[R]:'R',[Q]:'Q',[K]:'K'
-  };
-  const PIECE_VALS = { [P]:1,[N]:3,[B_]:3,[R]:5,[Q]:9,[K]:0 };
+  const PIECE_NAMES = { [P]:'P',[N]:'N',[B_]:'B',[R]:'R',[Q]:'Q',[K]:'K' };
+  const PIECE_VALS  = { [P]:1,[N]:3,[B_]:3,[R]:5,[Q]:9,[K]:0 };
 
   function captureStr(list) {
     if (!list.length) return '';
     const sorted = list.slice().sort((a,b) => PIECE_VALS[type(b)] - PIECE_VALS[type(a)]);
-    return sorted.map(p => GLYPHS[p]).join(' ');
+    return sorted.map(p => PIECE_NAMES[type(p)]).join(' ');
   }
 
   function updateStatus() {
