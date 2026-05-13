@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>3XO</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d0d0f;
+      --surface: #16171c;
+      --border: rgba(255,255,255,.07);
+      --text: #f0ede8;
+      --muted: #5a5e72;
+
+      --p1: #e84c4c;
+      --p2: #4c9ee8;
+      --p3: #f5c842;
+      --p4: #4ce897;
+
+      --p1-dim: rgba(232,76,76,.18);
+      --p2-dim: rgba(76,158,232,.18);
+      --p3-dim: rgba(245,200,66,.18);
+      --p4-dim: rgba(76,232,151,.18);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace; }
+    body { display: flex; justify-content: center; padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom); }
+    main { width: min(100%, 560px); padding: 24px 0 40px; }
+
+    header { margin-bottom: 28px; }
+    h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3.5rem, 14vw, 6rem);
+      line-height: .85;
+      letter-spacing: .04em;
+      margin: 0;
+      background: linear-gradient(135deg, #e84c4c 0%, #f5c842 50%, #4ce897 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .tagline { color: var(--muted); font-size: .75rem; letter-spacing: .2em; text-transform: uppercase; margin-top: 6px; }
+
+    /* ── setup ── */
+    .setup-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .setup-label { font-size: .7rem; letter-spacing: .15em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+    .player-count-row { display: flex; gap: 8px; margin-bottom: 16px; }
+    .pc-btn {
+      flex: 1; height: 40px; border-radius: 10px;
+      border: 1px solid var(--border);
+      background: transparent; color: var(--muted);
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem;
+      cursor: pointer; transition: all .15s;
+    }
+    .pc-btn.active { border-color: var(--text); color: var(--text); background: rgba(255,255,255,.06); }
+    .pc-btn:active { transform: scale(.97); }
+
+    .player-setup { display: grid; gap: 8px; }
+    .player-row { display: flex; align-items: center; gap: 10px; }
+    .color-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .name-input {
+      flex: 1; background: rgba(255,255,255,.05); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 10px; color: var(--text);
+      font-family: 'DM Mono', monospace; font-size: .85rem; outline: none;
+    }
+    .name-input:focus { border-color: rgba(255,255,255,.2); }
+
+    .start-btn {
+      width: 100%; height: 48px; border-radius: 12px; border: none;
+      background: linear-gradient(135deg, #e84c4c, #f5c842);
+      color: #0d0d0f; font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem; letter-spacing: .1em; cursor: pointer;
+      margin-top: 16px; transition: opacity .15s;
+    }
+    .start-btn:active { opacity: .8; }
+
+    /* ── game area ── */
+    .game-area { display: none; }
+    .game-area.show { display: block; }
+
+    /* Turn indicator */
+    .turn-bar {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px 16px; margin-bottom: 16px;
+    }
+    .turn-ring { width: 28px; height: 28px; border-radius: 50%; border: 4px solid; flex-shrink: 0; }
+    .turn-name { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: .06em; flex: 1; }
+    .turn-hint { font-size: .7rem; color: var(--muted); }
+
+    /* Board */
+    .board-wrap {
+      width: 100%; aspect-ratio: 1/1;
+      display: grid; grid-template-columns: repeat(3,1fr); grid-template-rows: repeat(3,1fr);
+      gap: 8px; margin-bottom: 16px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 12px;
+    }
+    .cell {
+      border-radius: 12px; border: 1px solid var(--border);
+      background: rgba(255,255,255,.02);
+      position: relative; cursor: pointer;
+      transition: background .15s, border-color .15s;
+      aspect-ratio: 1/1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cell.valid { border-color: rgba(255,255,255,.25); background: rgba(255,255,255,.05); cursor: pointer; }
+    .cell.invalid { cursor: default; }
+    .cell:active.valid { transform: scale(.97); }
+    .cell-inner { position: relative; width: 85%; height: 85%; }
+
+    /* Rings drawn via canvas per cell */
+    .cell-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+    /* Piece tray */
+    .tray-section { margin-bottom: 16px; }
+    .tray-label { font-size: .7rem; letter-spacing: .15em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+    .tray { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .tray-piece {
+      border-radius: 10px; border: 1px solid var(--border);
+      background: var(--surface); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s; position: relative;
+    }
+    .tray-piece.selected { border-color: rgba(255,255,255,.5); background: rgba(255,255,255,.1); }
+    .tray-piece.used { opacity: .25; cursor: default; pointer-events: none; }
+    .tray-piece:active:not(.used) { transform: scale(.93); }
+    .tray-piece canvas { display: block; }
+    .tray-count {
+      position: absolute; top: -5px; right: -5px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 99px; font-size: .65rem; padding: 1px 5px;
+      color: var(--muted); pointer-events: none;
+    }
+
+    /* Controls */
+    .ctrl-row { display: flex; gap: 8px; }
+    .ctrl-btn {
+      flex: 1; height: 40px; border-radius: 10px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); font-family: 'DM Mono', monospace;
+      font-size: .8rem; cursor: pointer; transition: all .15s;
+    }
+    .ctrl-btn:active { transform: scale(.97); }
+    .ctrl-btn.danger { color: #e84c4c; border-color: rgba(232,76,76,.25); }
+
+    /* Message */
+    .message { min-height: 1.4em; font-size: .85rem; color: var(--muted); margin: 10px 0; }
+
+    /* Win overlay */
+    .win-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.8); backdrop-filter: blur(6px);
+      align-items: center; justify-content: center; z-index: 100;
+      flex-direction: column; gap: 16px; text-align: center; padding: 20px;
+    }
+    .win-overlay.show { display: flex; }
+    .win-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(3rem,12vw,5rem); letter-spacing: .06em; }
+    .win-sub { color: var(--muted); font-size: .85rem; }
+    .win-btn {
+      height: 48px; padding: 0 32px; border-radius: 12px; border: 1px solid rgba(255,255,255,.2);
+      background: rgba(255,255,255,.08); color: var(--text);
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: .1em;
+      cursor: pointer; transition: background .15s;
+    }
+    .win-btn:active { background: rgba(255,255,255,.15); }
+
+    @media (max-width: 400px) {
+      .board-wrap { gap: 5px; padding: 8px; }
+      .cell { border-radius: 8px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>3XO</h1>
+    <div class="tagline">Ring strategy · 2–4 players</div>
+  </header>
+
+  <!-- Setup -->
+  <div class="setup-panel" id="setup-panel">
+    <div class="setup-label">Number of players</div>
+    <div class="player-count-row">
+      <button class="pc-btn active" onclick="setPC(2)">2</button>
+      <button class="pc-btn" onclick="setPC(3)">3</button>
+      <button class="pc-btn" onclick="setPC(4)">4</button>
+    </div>
+    <div class="setup-label">Player names</div>
+    <div class="player-setup" id="player-setup"></div>
+    <button class="start-btn" onclick="startGame()">Start Game</button>
+  </div>
+
+  <!-- Game -->
+  <div class="game-area" id="game-area">
+    <div class="turn-bar">
+      <div class="turn-ring" id="turn-ring"></div>
+      <div class="turn-name" id="turn-name"></div>
+      <div class="turn-hint" id="turn-hint">select a ring size</div>
+    </div>
+
+    <div class="board-wrap" id="board-wrap"></div>
+
+    <div class="tray-section">
+      <div class="tray-label">Your pieces — tap to select, then tap a cell</div>
+      <div class="tray" id="tray"></div>
+    </div>
+
+    <div class="message" id="message"></div>
+
+    <div class="ctrl-row">
+      <button class="ctrl-btn" onclick="undoMove()">Undo</button>
+      <button class="ctrl-btn danger" onclick="endGame()">New game</button>
+    </div>
+  </div>
+
+  <!-- Win overlay -->
+  <div class="win-overlay" id="win-overlay">
+    <div class="win-title" id="win-title"></div>
+    <div class="win-sub" id="win-sub"></div>
+    <button class="win-btn" onclick="endGame()">Play again</button>
+  </div>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  // ── constants ─────────────────────────────────────────────────────────────
+  const COLORS = ['#e84c4c','#4c9ee8','#f5c842','#4ce897'];
+  const SIZES  = [0, 1, 2]; // 0=small, 1=med, 2=large
+  const SIZE_LABELS = ['Small','Medium','Large'];
+  const PIECES_PER_SIZE = 3; // each player gets 3 of each size
+  const GRID = 3;
+
+  // ── state ─────────────────────────────────────────────────────────────────
+  let numPlayers, players, board, turn, selected, history, gameOver;
+  // board[row][col] = array of {player, size} placed rings (index = size slot)
+  // board[r][c][size] = player index or -1
+
+  let setupPC = 2;
+  const defaultNames = ['Red','Blue','Yellow','Green'];
+
+  // ── setup UI ──────────────────────────────────────────────────────────────
+  window.setPC = function(n) {
+    setupPC = n;
+    document.querySelectorAll('.pc-btn').forEach((b,i) => b.classList.toggle('active', i+2 === n));
+    renderSetup();
+  };
+
+  function renderSetup() {
+    const el = document.getElementById('player-setup');
+    el.innerHTML = '';
+    for (let i = 0; i < setupPC; i++) {
+      const row = document.createElement('div');
+      row.className = 'player-row';
+      row.innerHTML = `
+        <div class="color-dot" style="background:${COLORS[i]}"></div>
+        <input class="name-input" id="pname-${i}" value="${defaultNames[i]}" maxlength="12" />
+      `;
+      el.appendChild(row);
+    }
+  }
+
+  window.startGame = function() {
+    numPlayers = setupPC;
+    players = [];
+    for (let i = 0; i < numPlayers; i++) {
+      const nameEl = document.getElementById('pname-' + i);
+      players.push({
+        name: nameEl ? nameEl.value.trim() || defaultNames[i] : defaultNames[i],
+        color: COLORS[i],
+        // remaining[size] = count left
+        remaining: [PIECES_PER_SIZE, PIECES_PER_SIZE, PIECES_PER_SIZE]
+      });
+    }
+    board = Array.from({length: GRID}, () =>
+      Array.from({length: GRID}, () => [-1,-1,-1]) // index = size
+    );
+    turn     = 0;
+    selected = null; // {size}
+    history  = [];
+    gameOver = false;
+
+    document.getElementById('setup-panel').style.display = 'none';
+    document.getElementById('game-area').classList.add('show');
+    document.getElementById('win-overlay').classList.remove('show');
+
+    renderAll();
+    setMsg('');
+  };
+
+  window.endGame = function() {
+    document.getElementById('setup-panel').style.display = 'block';
+    document.getElementById('game-area').classList.remove('show');
+    document.getElementById('win-overlay').classList.remove('show');
+    renderSetup();
+  };
+
+  renderSetup();
+
+  // ── game logic ────────────────────────────────────────────────────────────
+  function canPlace(r, c, size) {
+    return board[r][c][size] === -1;
+  }
+
+  function placeRing(r, c, size) {
+    if (!canPlace(r, c, size)) return false;
+    if (players[turn].remaining[size] <= 0) return false;
+
+    // Save history
+    history.push({
+      board: board.map(row => row.map(cell => cell.slice())),
+      remaining: players.map(p => p.remaining.slice()),
+      turn, selected
+    });
+
+    board[r][c][size] = turn;
+    players[turn].remaining[size]--;
+    selected = null;
+
+    // Check win
+    const winner = checkWin();
+    if (winner !== null) {
+      gameOver = true;
+      showWin(winner);
+      renderAll();
+      return true;
+    }
+
+    // Check draw (no moves left for anyone)
+    if (isDraw()) {
+      gameOver = true;
+      document.getElementById('win-overlay').classList.add('show');
+      document.getElementById('win-title').textContent = 'DRAW';
+      document.getElementById('win-sub').textContent = 'No more moves available.';
+      renderAll();
+      return true;
+    }
+
+    // Advance turn — skip players with no pieces
+    let next = (turn + 1) % numPlayers;
+    let tries = 0;
+    while (!hasAnyMove(next) && tries < numPlayers) {
+      next = (next + 1) % numPlayers;
+      tries++;
+    }
+    turn = next;
+    renderAll();
+    setMsg('');
+    return true;
+  }
+
+  function hasAnyMove(playerIdx) {
+    const rem = players[playerIdx].remaining;
+    for (let r = 0; r < GRID; r++)
+      for (let c = 0; c < GRID; c++)
+        for (const sz of SIZES)
+          if (rem[sz] > 0 && board[r][c][sz] === -1) return true;
+    return false;
+  }
+
+  function isDraw() {
+    for (let pi = 0; pi < numPlayers; pi++)
+      if (hasAnyMove(pi)) return false;
+    return true;
+  }
+
+  // Win conditions for a line of 3 cells:
+  // 1. All same COLOR (player) at same size slot
+  // 2. All same SIZE (any size slot) and same player
+  // 3. ESCALATING: each cell has a ring of a different size (S,M,L each present), all same player
+  function checkWin() {
+    // Win condition: all 3 sizes in one cell, all owned by same player
+    for (let r = 0; r < GRID; r++) {
+      for (let c = 0; c < GRID; c++) {
+        const cell = board[r][c];
+        if (cell[0] !== -1 && cell[0] === cell[1] && cell[1] === cell[2]) {
+          return cell[0];
+        }
+      }
+    }
+
+    const lines = [
+      // rows
+      [[0,0],[0,1],[0,2]], [[1,0],[1,1],[1,2]], [[2,0],[2,1],[2,2]],
+      // cols
+      [[0,0],[1,0],[2,0]], [[0,1],[1,1],[2,1]], [[0,2],[1,2],[2,2]],
+      // diags
+      [[0,0],[1,1],[2,2]], [[0,2],[1,1],[2,0]]
+    ];
+
+    for (const line of lines) {
+      const w = checkLine(line);
+      if (w !== null) return w;
+    }
+    return null;
+  }
+
+  function checkLine(cells) {
+    // Win type 1: same player, same size, all three cells have that size
+    for (const sz of SIZES) {
+      const owners = cells.map(([r,c]) => board[r][c][sz]);
+      if (owners[0] !== -1 && owners[0] === owners[1] && owners[1] === owners[2]) {
+        return owners[0];
+      }
+    }
+
+    // Win type 2: escalating — one ring of each size (S,M,L) across the line, same player
+    // Each cell contributes one specific size: [S,M,L] in some arrangement, all same player
+    const perms = [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
+    for (const perm of perms) {
+      for (let p = 0; p < numPlayers; p++) {
+        const valid = cells.every(([r,c], i) => board[r][c][perm[i]] === p);
+        if (valid) return p;
+      }
+    }
+
+    return null;
+  }
+
+  window.undoMove = function() {
+    if (!history.length) return setMsg('Nothing to undo.');
+    const s = history.pop();
+    board   = s.board;
+    players.forEach((pl, i) => pl.remaining = s.remaining[i]);
+    turn     = s.turn;
+    selected = s.selected;
+    gameOver = false;
+    document.getElementById('win-overlay').classList.remove('show');
+    renderAll();
+    setMsg('Undid last move.');
+  };
+
+  function showWin(playerIdx) {
+    const overlay = document.getElementById('win-overlay');
+    document.getElementById('win-title').textContent = players[playerIdx].name + ' WINS';
+    document.getElementById('win-title').style.color = players[playerIdx].color;
+    document.getElementById('win-sub').textContent = 'Congratulations!';
+    overlay.classList.add('show');
+  }
+
+  // ── rendering ─────────────────────────────────────────────────────────────
+  function renderAll() {
+    renderTurnBar();
+    renderBoard();
+    renderTray();
+  }
+
+  function renderTurnBar() {
+    if (gameOver) return;
+    const p = players[turn];
+    document.getElementById('turn-ring').style.borderColor = p.color;
+    document.getElementById('turn-name').textContent = p.name;
+    document.getElementById('turn-name').style.color = p.color;
+    document.getElementById('turn-hint').textContent =
+      selected !== null ? `${SIZE_LABELS[selected]} ring selected — tap a cell` : 'Select a ring size below';
+  }
+
+  function renderBoard() {
+    const wrap = document.getElementById('board-wrap');
+    wrap.innerHTML = '';
+    for (let r = 0; r < GRID; r++) {
+      for (let c = 0; c < GRID; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+
+        // Is this cell a valid target?
+        const isValid = !gameOver && selected !== null && canPlace(r, c, selected);
+        cell.classList.add(isValid ? 'valid' : 'invalid');
+
+        // Canvas for rings
+        const cv = document.createElement('canvas');
+        cv.className = 'cell-canvas';
+        cell.appendChild(cv);
+
+        cell.addEventListener('click', () => {
+          if (gameOver) return;
+          if (selected === null) { setMsg('Select a ring size first.'); return; }
+          if (!canPlace(r, c, selected)) { setMsg('That size slot is already occupied.'); return; }
+          placeRing(r, c, selected);
+        });
+
+        wrap.appendChild(cell);
+        drawCell(cv, board[r][c]);
+      }
+    }
+  }
+
+  function drawCell(cv, rings) {
+    // rings = [-1,-1,-1] indexed by size (0=small,1=med,2=large)
+    const size = cv.offsetWidth || cv.parentElement.offsetWidth || 80;
+    const dpr  = Math.max(1, window.devicePixelRatio || 1);
+    cv.width  = size * dpr;
+    cv.height = size * dpr;
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const cx = size / 2, cy = size / 2;
+
+    // Draw rings large→small so small sits on top
+    const radii = [size * 0.18, size * 0.30, size * 0.43];
+    const lw    = [size * 0.055, size * 0.065, size * 0.075];
+
+    for (let sz = 2; sz >= 0; sz--) {
+      const owner = rings[sz];
+      if (owner === -1) {
+        // Ghost ring
+        ctx.beginPath();
+        ctx.arc(cx, cy, radii[sz], 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,.06)';
+        ctx.lineWidth = lw[sz];
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(cx, cy, radii[sz], 0, Math.PI * 2);
+        ctx.strokeStyle = players[owner].color;
+        ctx.lineWidth = lw[sz];
+        ctx.shadowColor = players[owner].color;
+        ctx.shadowBlur = 6;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+    }
+  }
+
+  function renderTray() {
+    const tray = document.getElementById('tray');
+    tray.innerHTML = '';
+    const p = players[turn];
+    const traySize = 72;
+
+    for (const sz of SIZES) {
+      const piece = document.createElement('div');
+      piece.className = 'tray-piece';
+      if (selected === sz) piece.classList.add('selected');
+      if (p.remaining[sz] === 0) piece.classList.add('used');
+      piece.style.width  = traySize + 'px';
+      piece.style.height = traySize + 'px';
+
+      const cv = document.createElement('canvas');
+      cv.width  = traySize;
+      cv.height = traySize;
+      cv.style.width  = traySize + 'px';
+      cv.style.height = traySize + 'px';
+      piece.appendChild(cv);
+
+      // Count badge
+      const badge = document.createElement('div');
+      badge.className = 'tray-count';
+      badge.textContent = p.remaining[sz];
+      piece.appendChild(badge);
+
+      // Size label
+      const lbl = document.createElement('div');
+      lbl.style.cssText = 'position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:.6rem;color:rgba(255,255,255,.35);pointer-events:none;';
+      lbl.textContent = SIZE_LABELS[sz][0]; // S M L
+      piece.appendChild(lbl);
+
+      piece.addEventListener('click', () => {
+        if (p.remaining[sz] === 0) return;
+        selected = (selected === sz) ? null : sz;
+        renderTurnBar();
+        renderBoard();
+        renderTray();
+      });
+
+      tray.appendChild(piece);
+
+      // Draw ring on tray canvas
+      drawTrayRing(cv, sz, p.color, selected === sz);
+    }
+  }
+
+  function drawTrayRing(cv, sz, color, isSelected) {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    cv.width  = cv.offsetWidth * dpr || 72 * dpr;
+    cv.height = cv.offsetHeight * dpr || 72 * dpr;
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const s = cv.offsetWidth || 72;
+    const cx = s/2, cy = s/2;
+
+    const radii = [s * 0.18, s * 0.30, s * 0.43];
+    const lws   = [s * 0.055, s * 0.065, s * 0.075];
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, radii[sz], 0, Math.PI * 2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = lws[sz];
+    if (isSelected) {
+      ctx.shadowColor = color;
+      ctx.shadowBlur  = 10;
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  function setMsg(t) { document.getElementById('message').textContent = t; }
+
+  window.addEventListener('resize', () => {
+    if (document.getElementById('game-area').classList.contains('show')) renderBoard();
+  });
+})();
+</script>
+</body>
+</html>
