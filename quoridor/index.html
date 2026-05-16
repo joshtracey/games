@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Quoridor</title>
+  <style>
+    :root{--bg:#1f2933;--panel:#111827;--text:#f9fafb;--muted:#cbd5e1;--accent:#93c5fd}
+    *,*::before,*::after{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif}
+    body{display:flex;justify-content:center;padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom)}
+    main{width:min(100%,540px);padding:14px 0 28px}
+    h1{margin:0 0 2px;font-size:clamp(1.4rem,6vw,2rem)}
+    .sub{color:var(--muted);font-size:.85rem;margin-bottom:12px}
+    .panel{background:color-mix(in srgb,var(--panel) 92%,white);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .setup-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+    .lbl{font-size:.8rem;color:var(--muted)}
+    .seg{height:32px;padding:0 12px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--muted);font:inherit;font-size:.85rem;cursor:pointer}
+    .seg.active{background:rgba(147,197,253,.2);border-color:var(--accent);color:var(--accent)}
+    .status{display:grid;gap:6px;margin-bottom:10px}
+    .stat-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid transparent}
+    .stat-row.active-p{border-color:rgba(255,255,255,.2)}
+    .stat-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+    .stat-name{flex:1;font-size:.85rem}
+    .stat-walls{font-size:.85rem;color:var(--muted)}
+    .board-wrap{width:100%;aspect-ratio:1/1;margin-bottom:10px;touch-action:none;position:relative}
+    canvas{display:block;width:100%;height:100%;cursor:pointer}
+    .mode-btns{display:flex;gap:8px;margin-bottom:10px}
+    .mode-btn{flex:1;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.08);color:var(--muted);font:inherit;font-size:.85rem;cursor:pointer}
+    .mode-btn.active-mode{border-color:var(--accent);color:var(--accent);background:rgba(147,197,253,.1)}
+    .mode-btn:active{transform:scale(.97)}
+    .controls{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    button{border:0;border-radius:12px;min-height:42px;padding:8px 12px;font:inherit;color:var(--text);background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.12);cursor:pointer}
+    button:active{transform:translateY(1px)}
+    .danger{background:#991b1b}
+    .message{min-height:1.4em;margin:8px 0;color:var(--muted);font-size:.88rem;text-align:center}
+    details{margin-top:10px;color:var(--muted);font-size:.85rem;line-height:1.4}
+    details summary{cursor:pointer;color:var(--accent)}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Quoridor</h1>
+  <div class="sub">Pass-and-play · 2–4 players</div>
+  <div class="panel">
+    <div class="setup-row">
+      <span class="lbl">Players:</span>
+      <button class="seg active" onclick="setPC(2)">2</button>
+      <button class="seg" onclick="setPC(4)">4</button>
+      <button class="seg" style="margin-left:auto" onclick="newGame()">New game</button>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="board-wrap"><canvas id="board"></canvas></div>
+    <div class="mode-btns">
+      <button class="mode-btn active-mode" id="btn-move" onclick="setMode('move')">Move pawn</button>
+      <button class="mode-btn" id="btn-wall" onclick="setMode('wall')">Place wall</button>
+    </div>
+    <div class="message" id="message">Red moves first. Reach the opposite side to win.</div>
+    <div class="controls">
+      <button onclick="undoMove()">Undo</button>
+      <button class="danger" onclick="newGame()">New game</button>
+    </div>
+    <details><summary>Rules</summary>
+      <p><strong>Move:</strong> Move your pawn one step (orthogonally, or jump over an adjacent pawn). <strong>Wall:</strong> Place a wall (2 cells long) to block paths — you have 10 walls each (5 in 4-player). <strong>Win:</strong> Be the first to reach the opposite row. Walls must never completely block any player from reaching their goal.</p>
+    </details>
+  </div>
+</main>
+<script>
+(()=>{
+"use strict";
+const N=9; // 9×9 board
+const COLS=['#e84c4c','#4c9ee8','#f5c842','#4ce897'];
+const NAMES=['Red','Blue','Yellow','Green'];
+
+// 2-player: Red starts row 8 → goal row 0; Blue starts row 0 → goal row 8
+// 4-player: add Yellow (col 0 → col 8) and Green (col 8 → col 0)
+// Walls: hWalls[r][c] = player who placed, blocks between (r,c)-(r,c+1) and (r+1,c)-(r+1,c+1)
+//        vWalls[r][c] = player who placed, blocks between (r,c)-(r+1,c) and (r,c+1)-(r+1,c+1)
+
+let pc,players,pawns,hWalls,vWalls,turn,history,gameOver,actionMode,wallPreview;
+// wallPreview: {r,c,dir:'h'|'v'} — what's being hovered
+
+window.setPC=function(n){
+  pc=n;
+  document.querySelectorAll('.seg').forEach((b,i)=>{if(i<2)b.classList.toggle('active',[2,4][i]===n)});
+  newGame();
+};
+
+window.newGame=function(){
+  players=[];
+  const wallsEach=pc===2?10:5;
+  for(let i=0;i<pc;i++) players.push({name:NAMES[i],color:COLS[i],walls:wallsEach});
+  // Starting positions
+  if(pc===2){
+    pawns=[[8,4],[0,4]];
+  } else {
+    pawns=[[8,4],[0,4],[4,0],[4,8]];
+  }
+  hWalls=Array.from({length:N-1},()=>new Array(N-1).fill(-1));
+  vWalls=Array.from({length:N-1},()=>new Array(N-1).fill(-1));
+  turn=0;history=[];gameOver=false;actionMode='move';wallPreview=null;
+  updateModeButtons();
+  renderStatus();draw();
+  setMsg(`${players[0].name} moves first.`);
+};
+
+function goalRow(p){
+  if(pc===2)return p===0?0:8;
+  return p===0?0:p===1?8:null;
+}
+function goalCol(p){
+  if(pc===2)return null;
+  return p===2?8:p===3?0:null;
+}
+function reachedGoal(p){
+  const[r,c]=pawns[p];
+  const gr=goalRow(p),gc=goalCol(p);
+  if(gr!==null)return r===gr;
+  return c===gc;
+}
+
+// ── Wall legality ─────────────────────────────────────────────────────────
+function hWallBlocks(r,c,r1,c1,r2,c2){
+  // Horizontal wall at (r,c) blocks movement between rows r and r+1 at cols c and c+1
+  if(hWalls[r][c]===-1)return false;
+  return((r1===r&&r2===r+1)||(r1===r+1&&r2===r))&&(c1===c||c1===c+1)&&c2===c1;
+}
+function vWallBlocks(r,c,r1,c1,r2,c2){
+  if(vWalls[r][c]===-1)return false;
+  return((c1===c&&c2===c+1)||(c1===c+1&&c2===c))&&(r1===r||r1===r+1)&&r2===r1;
+}
+
+function isBlocked(r1,c1,r2,c2){
+  // Check if moving from (r1,c1) to (r2,c2) is blocked by any wall
+  const dr=r2-r1,dc=c2-c1;
+  if(Math.abs(dr)+Math.abs(dc)!==1)return true;
+  if(dr===1){ // moving down
+    const wr=r1,wc=Math.min(c1,c2);
+    for(let wcc=Math.max(0,c1-1);wcc<Math.min(N-1,c1+1);wcc++){
+      if(wr<N-1&&wr>=0&&wcc>=0&&wcc<N-1&&hWalls[wr][wcc]!==-1){
+        if((wcc===c1||wcc===c1-1))return true;
+      }
+    }
+    if(c1>=0&&c1<N-1&&r1>=0&&r1<N-1&&hWalls[r1][c1]!==-1)return true;
+    if(c1>0&&r1>=0&&r1<N-1&&hWalls[r1][c1-1]!==-1)return true;
+  }
+  if(dr===-1){ // moving up
+    if(c1>=0&&c1<N-1&&r2>=0&&r2<N-1&&hWalls[r2][c1]!==-1)return true;
+    if(c1>0&&r2>=0&&r2<N-1&&hWalls[r2][c1-1]!==-1)return true;
+  }
+  if(dc===1){ // moving right
+    if(r1>=0&&r1<N-1&&c1>=0&&c1<N-1&&vWalls[r1][c1]!==-1)return true;
+    if(r1>0&&c1>=0&&c1<N-1&&vWalls[r1-1][c1]!==-1)return true;
+  }
+  if(dc===-1){ // moving left
+    if(r1>=0&&r1<N-1&&c2>=0&&c2<N-1&&vWalls[r1][c2]!==-1)return true;
+    if(r1>0&&c2>=0&&c2<N-1&&vWalls[r1-1][c2]!==-1)return true;
+  }
+  return false;
+}
+
+function validPawnMoves(p){
+  const[r,c]=pawns[p];
+  const dirs=[[-1,0],[1,0],[0,-1],[0,1]];
+  const moves=[];
+  const occupied=new Set(pawns.filter((_,i)=>i!==p).map(([pr,pc])=>`${pr},${pc}`));
+  for(const[dr,dc] of dirs){
+    const nr=r+dr,nc=c+dc;
+    if(nr<0||nr>=N||nc<0||nc>=N)continue;
+    if(isBlocked(r,c,nr,nc))continue;
+    if(occupied.has(`${nr},${nc}`)){
+      // Jump over
+      const jr=nr+dr,jc=nc+dc;
+      if(jr>=0&&jr<N&&jc>=0&&jc<N&&!isBlocked(nr,nc,jr,jc)&&!occupied.has(`${jr},${jc}`)){
+        moves.push([jr,jc]);
+      } else {
+        // Sideways jumps
+        for(const[sdr,sdc] of dirs){
+          if(sdr===dr&&sdc===dc)continue;
+          if(sdr===-dr&&sdc===-dc)continue;
+          const sr=nr+sdr,sc=nc+sdc;
+          if(sr>=0&&sr<N&&sc>=0&&sc<N&&!isBlocked(nr,nc,sr,sc)&&!occupied.has(`${sr},${sc}`)){
+            moves.push([sr,sc]);
+          }
+        }
+      }
+    } else {
+      moves.push([nr,nc]);
+    }
+  }
+  return moves;
+}
+
+function canReachGoal(p,hw,vw){
+  // BFS to check if player p can reach their goal with given walls
+  const[sr,sc]=pawns[p];
+  const visited=new Set([`${sr},${sc}`]);
+  const queue=[[sr,sc]];
+  const occupied=new Set(pawns.filter((_,i)=>i!==p).map(([pr,pc])=>`${pr},${pc}`));
+  while(queue.length){
+    const[r,c]=queue.shift();
+    const gr=goalRow(p),gc=goalCol(p);
+    if(gr!==null&&r===gr)return true;
+    if(gc!==null&&c===gc)return true;
+    for(const[dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]){
+      const nr=r+dr,nc=c+dc;
+      if(nr<0||nr>=N||nc<0||nc>=N)continue;
+      if(isBlockedWithWalls(r,c,nr,nc,hw,vw))continue;
+      const key=`${nr},${nc}`;
+      if(!visited.has(key)){visited.add(key);queue.push([nr,nc]);}
+    }
+  }
+  return false;
+}
+
+function isBlockedWithWalls(r1,c1,r2,c2,hw,vw){
+  const dr=r2-r1,dc=c2-c1;
+  if(dr===1){
+    if(c1>=0&&c1<N-1&&r1>=0&&r1<N-1&&hw[r1][c1]!==-1)return true;
+    if(c1>0&&r1>=0&&r1<N-1&&hw[r1][c1-1]!==-1)return true;
+  }
+  if(dr===-1){
+    if(c1>=0&&c1<N-1&&r2>=0&&r2<N-1&&hw[r2][c1]!==-1)return true;
+    if(c1>0&&r2>=0&&r2<N-1&&hw[r2][c1-1]!==-1)return true;
+  }
+  if(dc===1){
+    if(r1>=0&&r1<N-1&&c1>=0&&c1<N-1&&vw[r1][c1]!==-1)return true;
+    if(r1>0&&c1>=0&&c1<N-1&&vw[r1-1][c1]!==-1)return true;
+  }
+  if(dc===-1){
+    if(r1>=0&&r1<N-1&&c2>=0&&c2<N-1&&vw[r1][c2]!==-1)return true;
+    if(r1>0&&c2>=0&&c2<N-1&&vw[r1-1][c2]!==-1)return true;
+  }
+  return false;
+}
+
+function canPlaceWall(r,c,dir){
+  if(players[turn].walls<=0)return false;
+  if(dir==='h'){
+    if(r<0||r>=N-1||c<0||c>=N-2)return false; // wall spans c and c+1
+    if(hWalls[r][c]!==-1||hWalls[r][c+1]!==-1)return false;
+    if(vWalls[r][c]!==-1)return false; // crossing
+  } else {
+    if(r<0||r>=N-2||c<0||c>=N-1)return false;
+    if(vWalls[r][c]!==-1||vWalls[r+1][c]!==-1)return false;
+    if(hWalls[r][c]!==-1)return false;
+  }
+  // Check path still exists for all players
+  const hwCopy=hWalls.map(row=>row.slice());
+  const vwCopy=vWalls.map(row=>row.slice());
+  if(dir==='h'){hwCopy[r][c]=turn;hwCopy[r][c+1]=turn;}
+  else{vwCopy[r][c]=turn;vwCopy[r+1][c]=turn;}
+  for(let p=0;p<pc;p++){
+    if(!canReachGoalWithWalls(p,hwCopy,vwCopy))return false;
+  }
+  return true;
+}
+
+function canReachGoalWithWalls(p,hw,vw){
+  const[sr,sc]=pawns[p];
+  const visited=new Set([`${sr},${sc}`]);
+  const queue=[[sr,sc]];
+  while(queue.length){
+    const[r,c]=queue.shift();
+    const gr=goalRow(p),gc=goalCol(p);
+    if(gr!==null&&r===gr)return true;
+    if(gc!==null&&c===gc)return true;
+    for(const[dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]){
+      const nr=r+dr,nc=c+dc;
+      if(nr<0||nr>=N||nc<0||nc>=N)continue;
+      if(isBlockedWithWalls(r,c,nr,nc,hw,vw))continue;
+      const key=`${nr},${nc}`;
+      if(!visited.has(key)){visited.add(key);queue.push([nr,nc]);}
+    }
+  }
+  return false;
+}
+
+function saveState(){
+  history.push({
+    pawns:pawns.map(p=>[...p]),
+    hWalls:hWalls.map(r=>r.slice()),
+    vWalls:vWalls.map(r=>r.slice()),
+    walls:players.map(p=>p.walls),
+    turn,actionMode
+  });
+}
+
+function movePawn(r,c){
+  const moves=validPawnMoves(turn);
+  if(!moves.some(([mr,mc])=>mr===r&&mc===c)){setMsg('Invalid move.');return;}
+  saveState();
+  pawns[turn]=[r,c];
+  if(reachedGoal(turn)){
+    gameOver=true;
+    setMsg(`🎉 ${players[turn].name} wins!`);
+    renderStatus();draw();return;
+  }
+  advanceTurn();
+}
+
+function placeWall(r,c,dir){
+  if(!canPlaceWall(r,c,dir)){setMsg('Cannot place wall there.');return;}
+  saveState();
+  if(dir==='h'){hWalls[r][c]=turn;hWalls[r][c+1]=turn;}
+  else{vWalls[r][c]=turn;vWalls[r+1][c]=turn;}
+  players[turn].walls--;
+  advanceTurn();
+}
+
+function advanceTurn(){
+  turn=(turn+1)%pc;
+  renderStatus();draw();
+  setMsg(`${players[turn].name}'s turn.`);
+}
+
+window.undoMove=function(){
+  if(!history.length)return setMsg('Nothing to undo.');
+  const s=history.pop();
+  pawns=s.pawns;hWalls=s.hWalls;vWalls=s.vWalls;
+  players.forEach((p,i)=>p.walls=s.walls[i]);
+  turn=s.turn;actionMode=s.actionMode;gameOver=false;
+  wallPreview=null;
+  updateModeButtons();renderStatus();draw();
+  setMsg(`${players[turn].name}'s turn.`);
+};
+
+window.setMode=function(m){actionMode=m;wallPreview=null;updateModeButtons();draw();};
+function updateModeButtons(){
+  document.getElementById('btn-move').classList.toggle('active-mode',actionMode==='move');
+  document.getElementById('btn-wall').classList.toggle('active-mode',actionMode==='wall');
+}
+
+// ── Canvas ─────────────────────────────────────────────────────────────────
+const canvas=document.getElementById('board');
+const ctx=canvas.getContext('2d');
+let CELL,PAD,WALL_W,GAP;
+
+function layout(){
+  const sz=canvas.getBoundingClientRect().width;
+  GAP=sz*0.015;PAD=sz*0.04;
+  CELL=(sz-2*PAD)/(N+(N-1)*GAP/sz*N);
+  CELL=(sz-2*PAD-GAP*(N-1))/N;
+  WALL_W=GAP*1.4;
+}
+
+function cellX(c){return PAD+c*(CELL+GAP);}
+function cellY(r){return PAD+r*(CELL+GAP);}
+
+function draw(){
+  const rect=canvas.getBoundingClientRect();
+  const dpr=Math.max(1,window.devicePixelRatio||1);
+  const S=Math.round(rect.width*dpr);
+  canvas.width=canvas.height=S;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  layout();
+  const sz=rect.width;
+
+  ctx.fillStyle='#0d0d11';ctx.fillRect(0,0,sz,sz);
+
+  // Goal rows highlight
+  if(pc>=1){ctx.fillStyle='rgba(232,76,76,.08)';ctx.fillRect(0,cellY(0),sz,CELL);}
+  if(pc>=2){ctx.fillStyle='rgba(76,158,232,.08)';ctx.fillRect(0,cellY(N-1),sz,CELL);}
+  if(pc>=4){
+    ctx.fillStyle='rgba(245,200,66,.08)';ctx.fillRect(cellX(N-1),0,CELL,sz);
+    ctx.fillStyle='rgba(76,232,151,.08)';ctx.fillRect(cellX(0),0,CELL,sz);
+  }
+
+  // Cells
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    ctx.fillStyle='#1e2433';
+    ctx.beginPath();ctx.roundRect(cellX(c),cellY(r),CELL,CELL,3);ctx.fill();
+  }
+
+  // Valid move highlights
+  if(!gameOver&&actionMode==='move'){
+    const moves=validPawnMoves(turn);
+    for(const[mr,mc] of moves){
+      ctx.fillStyle='rgba(147,197,253,.25)';
+      ctx.beginPath();ctx.roundRect(cellX(mc),cellY(mr),CELL,CELL,3);ctx.fill();
+    }
+  }
+
+  // Wall preview
+  if(wallPreview&&actionMode==='wall'){
+    const{r,c,dir}=wallPreview;
+    const ok=canPlaceWall(r,c,dir);
+    ctx.fillStyle=ok?'rgba(255,255,255,.5)':'rgba(232,76,76,.5)';
+    if(dir==='h'){
+      const x=cellX(c),y=cellY(r)+CELL;
+      ctx.fillRect(x,y,CELL*2+GAP,WALL_W);
+    } else {
+      const x=cellX(c)+CELL,y=cellY(r);
+      ctx.fillRect(x,y,WALL_W,CELL*2+GAP);
+    }
+  }
+
+  // Placed walls
+  for(let r=0;r<N-1;r++)for(let c=0;c<N-1;c++){
+    if(hWalls[r][c]!==-1){
+      ctx.fillStyle=players[hWalls[r][c]].color+'cc';
+      ctx.fillRect(cellX(c),cellY(r)+CELL,CELL*2+GAP,WALL_W);
+    }
+    if(vWalls[r][c]!==-1){
+      ctx.fillStyle=players[vWalls[r][c]].color+'cc';
+      ctx.fillRect(cellX(c)+CELL,cellY(r),WALL_W,CELL*2+GAP);
+    }
+  }
+
+  // Pawns
+  for(let p=0;p<pc;p++){
+    const[r,c]=pawns[p];
+    const cx=cellX(c)+CELL/2,cy=cellY(r)+CELL/2;
+    const pr=CELL*0.36;
+    ctx.fillStyle=players[p].color;
+    ctx.beginPath();ctx.arc(cx,cy,pr,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1.5;ctx.stroke();
+    // Initial letter
+    ctx.fillStyle='#fff';ctx.font=`bold ${pr*0.9}px system-ui`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(players[p].name[0],cx,cy);
+  }
+}
+
+function posFromEvent(ev){
+  const rect=canvas.getBoundingClientRect();
+  const x=ev.clientX-rect.left,y=ev.clientY-rect.top;
+  const c=Math.floor((x-PAD)/(CELL+GAP));
+  const r=Math.floor((y-PAD)/(CELL+GAP));
+  return{x,y,r,c};
+}
+
+canvas.addEventListener('pointerup',ev=>{
+  if(gameOver)return;
+  const{x,y,r,c}=posFromEvent(ev);
+  if(actionMode==='move'){
+    if(r>=0&&r<N&&c>=0&&c<N)movePawn(r,c);
+  } else {
+    if(wallPreview&&canPlaceWall(wallPreview.r,wallPreview.c,wallPreview.dir)){
+      placeWall(wallPreview.r,wallPreview.c,wallPreview.dir);
+      wallPreview=null;
+    }
+  }
+});
+
+canvas.addEventListener('pointermove',ev=>{
+  if(gameOver||actionMode!=='wall')return;
+  const rect=canvas.getBoundingClientRect();
+  const x=ev.clientX-rect.left,y=ev.clientY-rect.top;
+  // Determine if closer to an h-gap or v-gap
+  const col=Math.floor((x-PAD)/(CELL+GAP));
+  const row=Math.floor((y-PAD)/(CELL+GAP));
+  const xInCell=(x-PAD)%(CELL+GAP);
+  const yInCell=(y-PAD)%(CELL+GAP);
+  // Near horizontal gap (between rows)?
+  const nearH=yInCell>CELL&&row>=0&&row<N-1&&col>=0&&col<N-1;
+  const nearV=xInCell>CELL&&col>=0&&col<N-1&&row>=0&&row<N-1;
+  if(nearH&&(!nearV||yInCell-CELL<xInCell-CELL)){
+    wallPreview={r:row,c:col,dir:'h'};
+  } else if(nearV){
+    wallPreview={r:row,c:col,dir:'v'};
+  } else {
+    wallPreview=null;
+  }
+  draw();
+});
+
+canvas.addEventListener('pointerleave',()=>{wallPreview=null;draw();});
+
+function renderStatus(){
+  const el=document.getElementById('status');
+  el.style.gridTemplateColumns=pc===2?'1fr 1fr':'1fr';
+  el.innerHTML=players.map((p,i)=>`
+    <div class="stat-row ${i===turn&&!gameOver?'active-p':''}">
+      <div class="stat-dot" style="background:${p.color}"></div>
+      <div class="stat-name" style="color:${p.color}">${p.name}</div>
+      <div class="stat-walls">${p.walls} walls</div>
+    </div>`).join('');
+}
+
+function setMsg(t){document.getElementById('message').textContent=t}
+window.addEventListener('resize',()=>draw());
+setPC(2);
+})();
+</script>
+</body>
+</html>
