@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>24 Game</title>
+  <style>
+    :root{--bg:#1f2933;--panel:#111827;--text:#f9fafb;--muted:#cbd5e1;--accent:#93c5fd;--gold:#f59e0b}
+    *,*::before,*::after{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif}
+    body{display:flex;justify-content:center;padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom)}
+    main{width:min(100%,480px);padding:14px 0 28px}
+    h1{margin:0 0 2px;font-size:clamp(1.4rem,6vw,2rem)}
+    .sub{color:var(--muted);font-size:.85rem;margin-bottom:12px}
+    .panel{background:color-mix(in srgb,var(--panel) 92%,white);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .mode-row{display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
+    .lbl{font-size:.8rem;color:var(--muted)}
+    .seg{height:32px;padding:0 12px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--muted);font:inherit;font-size:.85rem;cursor:pointer}
+    .seg.active{background:rgba(147,197,253,.2);border-color:var(--accent);color:var(--accent)}
+    .scores{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;min-height:.5em}
+    .score-chip{padding:5px 12px;border-radius:20px;font-size:.85rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
+    .score-chip.active-p{border-color:rgba(255,255,255,.35)}
+    .cards{display:flex;gap:12px;justify-content:center;margin-bottom:20px}
+    .card{width:68px;height:90px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:700;background:#f0ede8;color:#1a1a1a;border:3px solid #d1ccc4;user-select:none;flex-shrink:0;cursor:pointer;transition:transform .1s,border-color .1s}
+    .card:active{transform:scale(.93);border-color:#93c5fd}
+    .timer-row{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px}
+    .timer{font-size:1.3rem;font-weight:700;color:var(--gold);min-width:44px;text-align:center}
+    .input-label{font-size:.72rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+    .expr-wrap{display:flex;gap:8px;margin-bottom:8px}
+    .expr-input{flex:1;height:48px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);color:var(--text);font:inherit;font-size:1.2rem;padding:0 12px;outline:none;text-align:center}
+    .expr-input:focus{border-color:rgba(147,197,253,.5)}
+    .check-btn{height:48px;padding:0 16px;border-radius:10px;border:none;background:#2563eb;color:#fff;font:inherit;font-size:.95rem;cursor:pointer;white-space:nowrap}
+    .check-btn:active{opacity:.85}
+    .keypad{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:12px}    .kp{height:42px;border-radius:9px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:var(--text);font:inherit;font-size:.95rem;cursor:pointer}
+    .kp:active{background:rgba(255,255,255,.18)}
+    .kp.op{color:var(--gold);background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.2)}
+    .kp.act{color:var(--accent);background:rgba(147,197,253,.08);border-color:rgba(147,197,253,.2)}
+    .kp.del{color:#f87171;background:rgba(248,113,113,.06);border-color:rgba(248,113,113,.18)}
+    .message{text-align:center;font-size:.92rem;min-height:1.6em;padding:8px;border-radius:8px;margin-bottom:10px;color:var(--muted)}
+    .message.ok{background:rgba(74,222,128,.1);color:#4ade80;border:1px solid rgba(74,222,128,.2)}
+    .message.err{background:rgba(248,113,113,.1);color:#f87171;border:1px solid rgba(248,113,113,.2)}
+    .help-row{display:flex;gap:8px;margin-bottom:8px}
+    .help-btn{flex:1;height:34px;border-radius:9px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--muted);font:inherit;font-size:.8rem;cursor:pointer}
+    .help-btn:active{background:rgba(255,255,255,.12)}
+    .new-btn{width:100%;height:40px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.07);color:var(--text);font:inherit;font-size:.9rem;cursor:pointer}
+    .new-btn:active{opacity:.8}
+    details{margin-top:12px;color:var(--muted);font-size:.85rem;line-height:1.5}
+    details summary{cursor:pointer;color:var(--accent)}
+    code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-size:.85em}
+  </style>
+</head>
+<body>
+<main>
+  <h1>24 Game</h1>
+  <div class="sub">Make 24 from 4 numbers using + − × ÷ and brackets</div>
+  <div class="panel">
+    <div class="mode-row">
+      <span class="lbl">Mode:</span>
+      <button class="seg active" onclick="setMode('solo')">Solo</button>
+      <button class="seg" onclick="setMode('race')">Race</button>
+      <span id="pc-wrap" style="display:none;gap:6px;align-items:center;display:none">
+        <span class="lbl" style="margin-left:8px">Players:</span>
+        <button class="seg" onclick="setPC(2)">2</button>
+        <button class="seg" onclick="setPC(3)">3</button>
+        <button class="seg" onclick="setPC(4)">4</button>
+      </span>
+    </div>
+    <div class="scores" id="scores"></div>
+    <div class="timer-row" id="timer-row"><span class="lbl">Time:</span><div class="timer" id="timer">0:00</div></div>
+    <div class="cards" id="cards"></div>
+    <div class="input-label">Your expression — use all 4 numbers</div>
+    <div class="expr-wrap">
+      <input class="expr-input" id="expr" type="text" placeholder="e.g. (8-2)×(9-5)" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none" />
+      <button class="check-btn" onclick="checkAnswer()">= 24?</button>
+    </div>
+    <div class="keypad" id="keypad"></div>
+    <div class="message" id="message">Enter an expression using all 4 numbers.</div>
+    <div class="help-row">
+      <button class="help-btn" onclick="showHint()">💡 Hint</button>
+      <button class="help-btn" onclick="showSolution()">🔍 Solution</button>
+    </div>
+    <button class="new-btn" onclick="newPuzzle()">New cards →</button>
+    <details><summary>How to play</summary>
+      <p>Use each of the 4 numbers <strong>exactly once</strong> with +, −, ×, ÷ and brackets to make 24.</p>
+      <p>Operator precedence applies (× ÷ before + −), so use brackets where needed. Example: <code>(3+1)×6</code> or <code>8÷(3-8÷8)</code>.</p>
+      <p>In <strong>Race</strong> mode the first player to submit a correct answer scores a point, then new cards are dealt.</p>
+    </details>
+  </div>
+</main>
+<script>
+(()=>{
+"use strict";
+const COLS=['#e84c4c','#4c9ee8','#f5c842','#4ce897'];
+const PNAMES=['Red','Blue','Yellow','Green'];
+let mode='solo', pc=2;
+let cards=[], players=[], currentPlayer=0;
+let timerSec=0, timerInt=null, puzzleSolved=false;
+
+// ── Mode ───────────────────────────────────────────────────────────────────
+window.setMode=function(m){
+  mode=m;
+  document.querySelectorAll('.seg').forEach((b,i)=>{if(i<2)b.classList.toggle('active',['solo','race'][i]===m)});
+  const pcw=document.getElementById('pc-wrap');
+  pcw.style.display=m==='race'?'inline-flex':'none';
+  document.getElementById('timer-row').style.display=m==='solo'?'flex':'none';
+  resetGame();
+};
+window.setPC=function(n){
+  pc=n;
+  document.querySelectorAll('#pc-wrap .seg').forEach((b,i)=>b.classList.toggle('active',[2,3,4][i]===n));
+  resetGame();
+};
+function resetGame(){
+  players=mode==='race'?Array.from({length:pc},(_,i)=>({name:PNAMES[i],color:COLS[i],score:0})):[];
+  currentPlayer=0;
+  renderScores();
+  newPuzzle();
+}
+
+// ── Puzzle ─────────────────────────────────────────────────────────────────
+window.newPuzzle=function(){
+  puzzleSolved=false; stopTimer();
+  for(let t=0;t<500;t++){
+    const c=[rn(),rn(),rn(),rn()];
+    if(solve(c)!==null){cards=c;break;}
+  }
+  renderCards();
+  document.getElementById('expr').value='';
+  setMsg('Enter an expression using all 4 numbers.','');
+  if(mode==='solo') startTimer();
+  else setMsg(`${players[currentPlayer].name} — solve it first!`,'');
+};
+function rn(){return Math.floor(Math.random()*9)+1;}
+
+// ── Solver ─────────────────────────────────────────────────────────────────
+function solve(nums){
+  return _solve(nums.map(n=>({val:n,expr:String(n)})));
+}
+function _solve(items){
+  if(items.length===1) return Math.abs(items[0].val-24)<1e-9?items[0].expr:null;
+  for(let i=0;i<items.length;i++){
+    for(let j=0;j<items.length;j++){
+      if(i===j)continue;
+      const rest=items.filter((_,k)=>k!==i&&k!==j);
+      const a=items[i],b=items[j];
+      const ops=[
+        {val:a.val+b.val,expr:`(${a.expr}+${b.expr})`},
+        {val:a.val-b.val,expr:`(${a.expr}-${b.expr})`},
+        {val:a.val*b.val,expr:`(${a.expr}*${b.expr})`},
+      ];
+      if(Math.abs(b.val)>1e-9) ops.push({val:a.val/b.val,expr:`(${a.expr}/${b.expr})`});
+      for(const op of ops){
+        const sub=_solve([op,...rest]);
+        if(sub!==null) return sub;
+      }
+    }
+  }
+  return null;
+}
+window.showSolution=function(){
+  const sol=solve(cards);
+  if(!sol){setMsg('No solution exists!','err');return;}
+  setMsg('Solution: '+sol.replace(/\*/g,'×').replace(/\//g,'÷'),'');
+};
+window.showHint=function(){
+  const sol=solve(cards);
+  if(!sol){setMsg('No solution — try new cards.','err');return;}
+  const m=sol.replace(/\*/g,'×').replace(/\//g,'÷').match(/\((\d+[+\-×÷]\d+)\)/);
+  setMsg(m?`Hint: try ${m[1]} first`:'Hint: think about which two numbers to combine first.','');
+};
+
+// ── Check answer ───────────────────────────────────────────────────────────
+window.checkAnswer=function(){
+  if(puzzleSolved)return;
+  const raw=document.getElementById('expr').value.trim();
+  if(!raw)return setMsg('Enter an expression first.','err');
+
+  // Normalise input symbols
+  const norm=raw.replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-').replace(/x/gi,'*');
+
+  // Extract numbers used
+  const numStr=norm.replace(/[+\-*/().\s]/g,' ').trim().split(/\s+/).filter(Boolean);
+  const numsUsed=numStr.map(Number);
+  if(numsUsed.some(n=>isNaN(n)||!Number.isInteger(n)||n<1||n>9))
+    return setMsg('Only use the 4 card numbers (1–9) — no other digits.','err');
+  if(numsUsed.length!==4) return setMsg(`Use exactly 4 numbers — found ${numsUsed.length}.`,'err');
+
+  const cardsSorted=[...cards].sort((a,b)=>a-b);
+  const usedSorted=[...numsUsed].sort((a,b)=>a-b);
+  if(cardsSorted.join(',')!==usedSorted.join(','))
+    return setMsg(`Use these exact numbers: ${cards.join(', ')}. You used: ${numsUsed.join(', ')}.`,'err');
+
+  // Safe eval — only allow digits, operators, parens, whitespace, dots
+  if(!/^[\d\s+\-*/().]+$/.test(norm))
+    return setMsg('Invalid characters — use numbers and + − × ÷ ( )','err');
+
+  let result;
+  try{ result=Function('"use strict";return('+norm+')')(); }
+  catch{ return setMsg('Invalid expression — check your brackets.','err'); }
+  if(typeof result!=='number'||!isFinite(result))
+    return setMsg('Expression produced an invalid result (division by zero?).','err');
+
+  if(Math.abs(result-24)<1e-9){
+    puzzleSolved=true; stopTimer();
+    if(mode==='race'){
+      players[currentPlayer].score++;
+      renderScores();
+      setMsg(`🎉 ${players[currentPlayer].name} got 24!`,'ok');
+      currentPlayer=(currentPlayer+1)%pc;
+      setTimeout(newPuzzle,2000);
+    } else {
+      setMsg(`✓ Correct! ${raw} = 24  (${timerVal()})`,'ok');
+    }
+  } else {
+    setMsg(`${raw} = ${Number.isInteger(result)?result:result.toFixed(6)} — not 24. Keep trying!`,'err');
+  }
+};
+
+// ── Keypad ─────────────────────────────────────────────────────────────────
+function buildKeypad(){
+  const kp=document.getElementById('keypad');
+  kp.innerHTML='';
+  ['+','−','×','÷'].forEach(op=>kpBtn(kp,op,'op',()=>ins(op)));
+  kpBtn(kp,'( )','op',()=>insParens());
+  kpBtn(kp,'⌫','del',()=>{const el=document.getElementById('expr');el.value=el.value.slice(0,-1);});
+  kpBtn(kp,'Clear','del',()=>{document.getElementById('expr').value='';});
+  kpBtn(kp,'= 24?','act',()=>checkAnswer());
+}
+function kpBtn(parent,label,cls,fn){
+  const b=document.createElement('button');
+  b.className='kp'+(cls?' '+cls:'');
+  b.textContent=label;
+  b.addEventListener('pointerdown',e=>{e.preventDefault();fn();});
+  parent.appendChild(b);
+}
+function ins(str){
+  const el=document.getElementById('expr');
+  const s=el.selectionStart??el.value.length;
+  const e2=el.selectionEnd??el.value.length;
+  const v=el.value;
+  el.value=v.slice(0,s)+str+v.slice(e2);
+  el.selectionStart=el.selectionEnd=s+String(str).length;
+}
+function insParens(){
+  const el=document.getElementById('expr');
+  const v=el.value;
+  const s=el.selectionStart??v.length;
+  const e2=el.selectionEnd??v.length;
+  if(s!==e2){
+    // Wrap selection in brackets
+    el.value=v.slice(0,s)+'('+v.slice(s,e2)+')'+v.slice(e2);
+    el.selectionStart=s;el.selectionEnd=e2+2;
+  } else {
+    // Count unmatched open brackets to decide ( or )
+    const open=(v.slice(0,s).match(/\(/g)||[]).length;
+    const close=(v.slice(0,s).match(/\)/g)||[]).length;
+    ins(open>close?')':'(');
+  }
+}
+
+// Allow Enter key
+window.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('expr').addEventListener('keydown',e=>{if(e.key==='Enter')checkAnswer();});
+});
+document.getElementById('expr').addEventListener('keydown',e=>{if(e.key==='Enter')checkAnswer();});
+
+// ── Timer ──────────────────────────────────────────────────────────────────
+function startTimer(){timerSec=0;updateTimer();timerInt=setInterval(()=>{timerSec++;updateTimer();},1000);}
+function stopTimer(){clearInterval(timerInt);}
+function updateTimer(){const m=Math.floor(timerSec/60),s=timerSec%60;document.getElementById('timer').textContent=`${m}:${s.toString().padStart(2,'0')}`;}
+function timerVal(){const m=Math.floor(timerSec/60),s=timerSec%60;return`${m}:${s.toString().padStart(2,'0')}`;}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function renderCards(){
+  const el=document.getElementById('cards');
+  el.innerHTML='';
+  cards.forEach(n=>{
+    const d=document.createElement('div');
+    d.className='card';
+    d.textContent=n;
+    d.style.cursor='pointer';
+    d.addEventListener('pointerdown',e=>{e.preventDefault();ins(n);});
+    el.appendChild(d);
+  });
+}
+function renderScores(){
+  const el=document.getElementById('scores');
+  if(mode==='solo'){el.innerHTML='';return;}
+  el.innerHTML=players.map((p,i)=>`<div class="score-chip ${i===currentPlayer?'active-p':''}" style="color:${p.color}">${p.name}: ${p.score}</div>`).join('');
+}
+function setMsg(t,cls){
+  const el=document.getElementById('message');
+  el.textContent=t;
+  el.className='message'+(cls?' '+cls:'');
+}
+
+resetGame();
+buildKeypad();
+})();
+</script>
+</body>
+</html>
