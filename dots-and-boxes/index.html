@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Dots &amp; Boxes</title>
+  <style>
+    :root {
+      --bg:#1f2933;--panel:#111827;--text:#f9fafb;--muted:#cbd5e1;--accent:#93c5fd;
+      --p0:#e84c4c;--p1:#4c9ee8;--p2:#f5c842;--p3:#4ce897;
+    }
+    *,*::before,*::after{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif}
+    body{display:flex;justify-content:center;padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom)}
+    main{width:min(100%,540px);padding:14px 0 28px}
+    h1{margin:0 0 2px;font-size:clamp(1.4rem,6vw,2rem)}
+    .sub{color:var(--muted);font-size:.85rem;margin-bottom:12px}
+    .panel{background:color-mix(in srgb,var(--panel) 92%,white);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .setup{display:grid;gap:10px;margin-bottom:12px}
+    .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .lbl{font-size:.8rem;color:var(--muted);min-width:60px}
+    .seg{height:34px;padding:0 14px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--muted);font:inherit;font-size:.9rem;cursor:pointer}
+    .seg.active{background:rgba(147,197,253,.2);border-color:var(--accent);color:var(--accent)}
+    .name-grid{display:grid;gap:6px}
+    .name-row{display:flex;align-items:center;gap:8px}
+    .dot-swatch{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+    .name-input{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:6px 10px;color:var(--text);font:inherit;font-size:.85rem;outline:none}
+    .start-btn{width:100%;height:44px;border-radius:10px;border:none;background:#2563eb;color:#fff;font:inherit;font-size:1rem;cursor:pointer;margin-top:4px}
+    .start-btn:active{opacity:.85}
+    .status{display:grid;gap:6px;margin-bottom:10px}
+    .stat-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.06)}
+    .stat-row.active-p{border:1px solid rgba(255,255,255,.2)}
+    .stat-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .stat-name{flex:1;font-size:.85rem}
+    .stat-score{font-size:1.1rem;font-weight:600}
+    .board-wrap{width:100%;aspect-ratio:1/1;margin-bottom:10px;touch-action:none;position:relative}
+    canvas{display:block;width:100%;height:100%;cursor:pointer}
+    .controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+    button{border:0;border-radius:12px;min-height:42px;padding:8px 12px;font:inherit;color:var(--text);background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.12);cursor:pointer}
+    button:active{transform:translateY(1px)}
+    .danger{background:#991b1b}
+    .message{min-height:1.4em;margin-top:8px;color:var(--muted);font-size:.88rem;text-align:center}
+    details{margin-top:10px;color:var(--muted);font-size:.85rem;line-height:1.4}
+    details summary{cursor:pointer;color:var(--accent)}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Dots &amp; Boxes</h1>
+  <div class="sub">Pass-and-play · 2–4 players</div>
+  <div class="panel">
+    <div id="setup">
+      <div class="setup">
+        <div class="row"><span class="lbl">Players</span>
+          <button class="seg active" onclick="setPC(2)">2</button>
+          <button class="seg" onclick="setPC(3)">3</button>
+          <button class="seg" onclick="setPC(4)">4</button>
+        </div>
+        <div class="row"><span class="lbl">Grid</span>
+          <button class="seg" onclick="setGrid(3)">3×3</button>
+          <button class="seg active" onclick="setGrid(5)">5×5</button>
+          <button class="seg" onclick="setGrid(7)">7×7</button>
+        </div>
+        <div class="name-grid" id="name-grid"></div>
+        <button class="start-btn" onclick="startGame()">Start</button>
+      </div>
+    </div>
+    <div id="game" style="display:none">
+      <div class="status" id="status"></div>
+      <div class="board-wrap"><canvas id="board"></canvas></div>
+      <div class="message" id="message"></div>
+      <div class="controls">
+        <button onclick="undoMove()">Undo</button>
+        <button class="danger" onclick="backToSetup()">New game</button>
+      </div>
+      <details><summary>Rules</summary>
+        <p>Take turns drawing one line between adjacent dots. Complete the 4th side of a box to claim it and take another turn. Most boxes wins.</p>
+      </details>
+    </div>
+  </div>
+</main>
+<script>
+(()=>{
+"use strict";
+const COLS=['#e84c4c','#4c9ee8','#f5c842','#4ce897'];
+const NAMES=['Red','Blue','Yellow','Green'];
+let pc=2,gridN=5;
+let players,hLines,vLines,boxes,turn,history,gameOver;
+
+// hLines[r][c] = player who drew it (-1=none), r=0..gridN, c=0..gridN-1
+// vLines[r][c] = player who drew it, r=0..gridN-1, c=0..gridN
+// boxes[r][c]  = player who owns it, r=0..gridN-1, c=0..gridN-1
+
+window.setPC=function(n){pc=n;document.querySelectorAll('.seg').forEach((b,i)=>{if(i<3)b.classList.toggle('active',[2,3,4][i]===n)});renderNameGrid()};
+window.setGrid=function(n){gridN=n;document.querySelectorAll('.seg').forEach((b,i)=>{if(i>=3&&i<6)b.classList.toggle('active',[3,5,7][i-3]===n)})};
+
+function renderNameGrid(){
+  const el=document.getElementById('name-grid');
+  el.innerHTML='';
+  for(let i=0;i<pc;i++){
+    const row=document.createElement('div');row.className='name-row';
+    row.innerHTML=`<div class="dot-swatch" style="background:${COLS[i]}"></div>
+      <input class="name-input" id="pn${i}" value="${NAMES[i]}" maxlength="12">`;
+    el.appendChild(row);
+  }
+}
+
+window.startGame=function(){
+  players=[];
+  for(let i=0;i<pc;i++){
+    const el=document.getElementById('pn'+i);
+    players.push({name:el?el.value.trim()||NAMES[i]:NAMES[i],color:COLS[i],score:0});
+  }
+  hLines=Array.from({length:gridN+1},()=>new Array(gridN).fill(-1));
+  vLines=Array.from({length:gridN},()=>new Array(gridN+1).fill(-1));
+  boxes=Array.from({length:gridN},()=>new Array(gridN).fill(-1));
+  turn=0;history=[];gameOver=false;
+  document.getElementById('setup').style.display='none';
+  document.getElementById('game').style.display='block';
+  setMsg('');renderStatus();draw();
+};
+
+window.backToSetup=function(){
+  document.getElementById('setup').style.display='block';
+  document.getElementById('game').style.display='none';
+};
+
+function saveState(){
+  history.push({
+    hLines:hLines.map(r=>r.slice()),
+    vLines:vLines.map(r=>r.slice()),
+    boxes:boxes.map(r=>r.slice()),
+    scores:players.map(p=>p.score),
+    turn
+  });
+}
+
+function tryLine(type,r,c){
+  if(gameOver)return;
+  const arr=type==='h'?hLines:vLines;
+  if(arr[r][c]!==-1)return setMsg('Line already drawn.');
+  saveState();
+  arr[r][c]=turn;
+  let scored=0;
+  // Check which boxes this completes
+  if(type==='h'){
+    // top of box (r,c): need h[r][c], h[r+1][c], v[r][c], v[r][c+1]
+    if(r>0&&checkBox(r-1,c))scored++;
+    if(r<gridN&&checkBox(r,c))scored++;
+  } else {
+    if(c>0&&checkBox(r,c-1))scored++;
+    if(c<gridN&&checkBox(r,c))scored++;
+  }
+  if(scored>0){
+    players[turn].score+=scored;
+    const total=gridN*gridN;
+    const filled=players.reduce((s,p)=>s+p.score,0);
+    if(filled>=total){gameOver=true;endGame();return;}
+    setMsg(`${players[turn].name} scored ${scored}! Goes again.`);
+  } else {
+    turn=(turn+1)%pc;
+    setMsg('');
+  }
+  renderStatus();draw();
+}
+
+function checkBox(r,c){
+  if(boxes[r][c]!==-1)return false;
+  if(hLines[r][c]!==-1&&hLines[r+1][c]!==-1&&vLines[r][c]!==-1&&vLines[r][c+1]!==-1){
+    boxes[r][c]=turn;return true;
+  }
+  return false;
+}
+
+function endGame(){
+  const maxS=Math.max(...players.map(p=>p.score));
+  const winners=players.filter(p=>p.score===maxS);
+  if(winners.length===1)setMsg(`🎉 ${winners[0].name} wins with ${maxS} boxes!`);
+  else setMsg(`Draw! ${winners.map(w=>w.name).join(' & ')} tied with ${maxS} boxes.`);
+  renderStatus();draw();
+}
+
+window.undoMove=function(){
+  if(!history.length)return setMsg('Nothing to undo.');
+  const s=history.pop();
+  hLines=s.hLines;vLines=s.vLines;boxes=s.boxes;
+  players.forEach((p,i)=>p.score=s.scores[i]);
+  turn=s.turn;gameOver=false;
+  setMsg('Undid.');renderStatus();draw();
+};
+
+// ── Canvas ──────────────────────────────────────────────────────────────
+const canvas=document.getElementById('board');
+const ctx=canvas.getContext('2d');
+let PAD,CELL,DOT_R,LINE_HIT;
+
+function draw(){
+  const rect=canvas.getBoundingClientRect();
+  const dpr=Math.max(1,window.devicePixelRatio||1);
+  const S=Math.round(rect.width*dpr);
+  canvas.width=canvas.height=S;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const sz=rect.width;
+  PAD=sz*0.07;CELL=(sz-2*PAD)/gridN;DOT_R=Math.max(3,sz*0.012);LINE_HIT=CELL*0.25;
+
+  ctx.fillStyle='#0d0d11';ctx.fillRect(0,0,sz,sz);
+
+  // Boxes
+  for(let r=0;r<gridN;r++)for(let c=0;c<gridN;c++){
+    if(boxes[r][c]===-1)continue;
+    ctx.fillStyle=players[boxes[r][c]].color+'44';
+    ctx.fillRect(PAD+c*CELL+2,PAD+r*CELL+2,CELL-4,CELL-4);
+  }
+
+  // H lines
+  for(let r=0;r<=gridN;r++)for(let c=0;c<gridN;c++){
+    const x1=PAD+c*CELL,x2=PAD+(c+1)*CELL,y=PAD+r*CELL;
+    ctx.strokeStyle=hLines[r][c]===-1?'rgba(255,255,255,.12)':players[hLines[r][c]].color;
+    ctx.lineWidth=hLines[r][c]===-1?1.5:Math.max(2.5,CELL*0.07);
+    ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(x1,y);ctx.lineTo(x2,y);ctx.stroke();
+  }
+
+  // V lines
+  for(let r=0;r<gridN;r++)for(let c=0;c<=gridN;c++){
+    const x=PAD+c*CELL,y1=PAD+r*CELL,y2=PAD+(r+1)*CELL;
+    ctx.strokeStyle=vLines[r][c]===-1?'rgba(255,255,255,.12)':players[vLines[r][c]].color;
+    ctx.lineWidth=vLines[r][c]===-1?1.5:Math.max(2.5,CELL*0.07);
+    ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x,y2);ctx.stroke();
+  }
+
+  // Box labels
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.font=`bold ${Math.max(9,CELL*0.28)}px system-ui`;
+  for(let r=0;r<gridN;r++)for(let c=0;c<gridN;c++){
+    if(boxes[r][c]===-1)continue;
+    ctx.fillStyle=players[boxes[r][c]].color;
+    ctx.fillText(players[boxes[r][c]].name[0],PAD+c*CELL+CELL/2,PAD+r*CELL+CELL/2);
+  }
+
+  // Dots
+  for(let r=0;r<=gridN;r++)for(let c=0;c<=gridN;c++){
+    ctx.fillStyle='#f0ede8';
+    ctx.beginPath();ctx.arc(PAD+c*CELL,PAD+r*CELL,DOT_R,0,Math.PI*2);ctx.fill();
+  }
+}
+
+canvas.addEventListener('pointerup',ev=>{
+  if(gameOver)return;
+  const rect=canvas.getBoundingClientRect();
+  const x=ev.clientX-rect.left-PAD,y=ev.clientY-rect.top-PAD;
+  // Find nearest line
+  let best=null,bestD=LINE_HIT*1.5;
+  // H lines
+  for(let r=0;r<=gridN;r++)for(let c=0;c<gridN;c++){
+    const lx=(c+0.5)*CELL,ly=r*CELL;
+    const d=Math.hypot(x-lx,y-ly);
+    if(d<bestD&&Math.abs(y-ly)<LINE_HIT){bestD=d;best={type:'h',r,c};}
+  }
+  // V lines
+  for(let r=0;r<gridN;r++)for(let c=0;c<=gridN;c++){
+    const lx=c*CELL,ly=(r+0.5)*CELL;
+    const d=Math.hypot(x-lx,y-ly);
+    if(d<bestD&&Math.abs(x-lx)<LINE_HIT){bestD=d;best={type:'v',r,c};}
+  }
+  if(best)tryLine(best.type,best.r,best.c);
+});
+
+function renderStatus(){
+  const el=document.getElementById('status');
+  el.style.gridTemplateColumns=pc<=2?'1fr 1fr':'1fr';
+  el.innerHTML=players.map((p,i)=>`
+    <div class="stat-row ${i===turn&&!gameOver?'active-p':''}">
+      <div class="stat-dot" style="background:${p.color}"></div>
+      <div class="stat-name">${p.name}</div>
+      <div class="stat-score" style="color:${p.color}">${p.score}</div>
+    </div>`).join('');
+}
+
+function setMsg(t){document.getElementById('message').textContent=t}
+window.addEventListener('resize',draw);
+renderNameGrid();
+})();
+</script>
+</body>
+</html>
