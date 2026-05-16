@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Sudoku</title>
+  <style>
+    :root {
+      --bg:#1f2933; --panel:#111827; --text:#f9fafb; --muted:#6b7280;
+      --accent:#93c5fd; --gold:#f59e0b; --err:#ef4444; --ok:#4ade80;
+      --cell-bg:#1e2433; --cell-given:#2a3044; --cell-sel:#1e3a5f;
+      --cell-peer:#1a2235; --cell-match:#1a3a28;
+    }
+    *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin:0; min-height:100%; background:var(--bg); color:var(--text); font-family:system-ui,sans-serif; }
+    body { display:flex; justify-content:center; padding:env(safe-area-inset-top) 10px env(safe-area-inset-bottom); }
+    main { width:min(100%,480px); padding:14px 0 32px; }
+    h1 { margin:0 0 2px; font-size:clamp(1.6rem,7vw,2.2rem); letter-spacing:-.01em; }
+    .sub { color:var(--muted); font-size:.82rem; margin-bottom:14px; }
+
+    /* Top bar */
+    .top-bar { display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+    .diff-btn { height:32px; padding:0 12px; border-radius:8px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.06); color:var(--muted); font:inherit; font-size:.82rem; cursor:pointer; transition:all .15s; }
+    .diff-btn.active { background:rgba(147,197,253,.18); border-color:var(--accent); color:var(--accent); }
+    .diff-btn:active { transform:scale(.96); }
+    .new-btn { margin-left:auto; height:32px; padding:0 14px; border-radius:8px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.08); color:var(--text); font:inherit; font-size:.82rem; cursor:pointer; }
+    .new-btn:active { opacity:.8; }
+
+    /* Timer + mistakes */
+    .info-bar { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+    .timer { font-size:1rem; font-weight:600; color:var(--gold); min-width:48px; }
+    .mistakes { font-size:.82rem; color:var(--muted); }
+    .mistakes span { color:var(--err); font-weight:600; }
+
+    /* Board */
+    .board-wrap { width:100%; aspect-ratio:1/1; margin-bottom:12px; }
+    .board {
+      display:grid; grid-template-columns:repeat(9,1fr); grid-template-rows:repeat(9,1fr);
+      width:100%; height:100%;
+      border:2px solid rgba(255,255,255,.35); border-radius:4px; overflow:hidden;
+    }
+    .cell {
+      display:flex; align-items:center; justify-content:center;
+      background:var(--cell-bg); cursor:pointer; position:relative;
+      border-right:1px solid rgba(255,255,255,.08);
+      border-bottom:1px solid rgba(255,255,255,.08);
+      transition:background .08s;
+      user-select:none;
+    }
+    /* Box borders */
+    .cell.br { border-right:2px solid rgba(255,255,255,.3); }
+    .cell.bb { border-bottom:2px solid rgba(255,255,255,.3); }
+    .cell.given { background:var(--cell-given); cursor:default; }
+    .cell.selected { background:var(--cell-sel) !important; }
+    .cell.peer { background:var(--cell-peer); }
+    .cell.match { background:var(--cell-match); }
+    .cell.error { background:rgba(239,68,68,.18) !important; }
+
+    .cell-num {
+      font-size:clamp(14px,4.5vw,22px); font-weight:600; line-height:1;
+    }
+    .cell.given .cell-num { color:var(--text); }
+    .cell:not(.given) .cell-num { color:var(--accent); }
+    .cell.error .cell-num { color:var(--err); }
+
+    /* Pencil marks */
+    .pencil-grid {
+      display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr);
+      width:90%; height:90%; position:absolute;
+    }
+    .pencil-mark {
+      display:flex; align-items:center; justify-content:center;
+      font-size:clamp(6px,1.8vw,9px); color:var(--muted); line-height:1; font-weight:500;
+    }
+
+    /* Numpad */
+    .numpad { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:10px; }
+    .num-btn {
+      height:52px; border-radius:10px; border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.07); color:var(--text);
+      font:inherit; font-size:1.3rem; font-weight:600; cursor:pointer; transition:all .12s;
+      position:relative;
+    }
+    .num-btn:active { transform:scale(.93); background:rgba(255,255,255,.18); }
+    .num-btn.pencil-mode { border-color:rgba(245,158,11,.4); background:rgba(245,158,11,.1); color:var(--gold); }
+    .num-btn .remain { position:absolute; top:3px; right:5px; font-size:.55rem; color:var(--muted); font-weight:400; }
+
+    /* Tool buttons */
+    .tools { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:10px; }
+    .tool-btn {
+      height:40px; border-radius:10px; border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.06); color:var(--muted);
+      font:inherit; font-size:.82rem; cursor:pointer; transition:all .12s;
+    }
+    .tool-btn:active { transform:scale(.97); }
+    .tool-btn.active-tool { border-color:rgba(245,158,11,.5); color:var(--gold); background:rgba(245,158,11,.1); }
+    .tool-btn.danger { color:#f87171; border-color:rgba(248,113,113,.2); }
+
+    .message { text-align:center; font-size:.88rem; min-height:1.4em; color:var(--muted); margin-bottom:8px; }
+    .message.win { color:var(--ok); font-weight:600; font-size:1rem; }
+
+    details { color:var(--muted); font-size:.82rem; line-height:1.5; }
+    details summary { cursor:pointer; color:var(--accent); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Sudoku</h1>
+  <div class="sub">Fill the grid — every row, column, and 3×3 box uses 1–9 once.</div>
+
+  <div class="top-bar">
+    <button class="diff-btn active" onclick="setDiff('easy')">Easy</button>
+    <button class="diff-btn" onclick="setDiff('medium')">Medium</button>
+    <button class="diff-btn" onclick="setDiff('hard')">Hard</button>
+    <button class="new-btn" onclick="newGame()">New game</button>
+  </div>
+
+  <div class="info-bar">
+    <div class="timer" id="timer">0:00</div>
+    <div class="mistakes">Mistakes: <span id="mistakes">0</span>/3</div>
+    <div id="status-msg" style="margin-left:auto;font-size:.8rem;color:var(--muted)"></div>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="numpad" id="numpad"></div>
+
+  <div class="tools">
+    <button class="tool-btn" id="pencil-btn" onclick="togglePencil()">✏️ Pencil</button>
+    <button class="tool-btn" onclick="eraseCell()">⌫ Erase</button>
+    <button class="tool-btn" onclick="undoAction()">↩ Undo</button>
+  </div>
+
+  <div class="message" id="message"></div>
+
+  <details>
+    <summary>How to play</summary>
+    <p>Tap a cell to select it, then tap a number to fill it in. Every row, column, and 3×3 box must contain each digit 1–9 exactly once. Use ✏️ Pencil mode to jot candidate numbers in small text. Erase clears the selected cell. You get 3 mistakes before the game ends.</p>
+  </details>
+</main>
+<script>
+(()=>{
+"use strict";
+
+// ── Difficulty settings ────────────────────────────────────────────────────
+const DIFF = {
+  easy:   { clues: 36, label: 'Easy' },
+  medium: { clues: 28, label: 'Medium' },
+  hard:   { clues: 22, label: 'Hard' },
+};
+
+let diff = 'easy';
+let puzzle, solution, given, pencil;
+let selected = -1;  // 0..80
+let pencilMode = false;
+let mistakes = 0;
+let history = [];
+let timerSec = 0, timerInt = null, gameOver = false;
+
+// ── Generator ──────────────────────────────────────────────────────────────
+function generatePuzzle(numClues) {
+  // 1. Fill a solved grid using backtracking with shuffle
+  const sol = new Array(81).fill(0);
+  fillGrid(sol);
+
+  // 2. Remove cells while maintaining unique solution
+  const indices = shuffle(Array.from({length:81},(_,i)=>i));
+  const puz = sol.slice();
+  let removed = 0;
+  const target = 81 - numClues;
+
+  for (const idx of indices) {
+    if (removed >= target) break;
+    const val = puz[idx];
+    puz[idx] = 0;
+    // Check uniqueness with a fast solver
+    if (countSolutions(puz.slice(), 2) === 1) {
+      removed++;
+    } else {
+      puz[idx] = val; // put it back
+    }
+  }
+  return { puzzle: puz, solution: sol };
+}
+
+function fillGrid(grid) {
+  const idx = grid.indexOf(0);
+  if (idx === -1) return true;
+  const nums = shuffle([1,2,3,4,5,6,7,8,9]);
+  for (const n of nums) {
+    if (isValid(grid, idx, n)) {
+      grid[idx] = n;
+      if (fillGrid(grid)) return true;
+      grid[idx] = 0;
+    }
+  }
+  return false;
+}
+
+function countSolutions(grid, limit) {
+  const idx = grid.indexOf(0);
+  if (idx === -1) return 1;
+  let count = 0;
+  for (let n = 1; n <= 9; n++) {
+    if (isValid(grid, idx, n)) {
+      grid[idx] = n;
+      count += countSolutions(grid.slice(), limit);
+      grid[idx] = 0;
+      if (count >= limit) return count;
+    }
+  }
+  return count;
+}
+
+function isValid(grid, idx, n) {
+  const r = Math.floor(idx / 9), c = idx % 9;
+  const boxR = Math.floor(r / 3) * 3, boxC = Math.floor(c / 3) * 3;
+  for (let i = 0; i < 9; i++) {
+    if (grid[r*9+i] === n) return false;
+    if (grid[i*9+c] === n) return false;
+    if (grid[(boxR+Math.floor(i/3))*9+(boxC+i%3)] === n) return false;
+  }
+  return true;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
+}
+
+// ── Game flow ──────────────────────────────────────────────────────────────
+window.setDiff = function(d) {
+  diff = d;
+  document.querySelectorAll('.diff-btn').forEach((b,i) =>
+    b.classList.toggle('active', ['easy','medium','hard'][i] === d));
+  newGame();
+};
+
+window.newGame = function() {
+  setMsg('Generating…');
+  setTimeout(() => {
+    const { puzzle: puz, solution: sol } = generatePuzzle(DIFF[diff].clues);
+    puzzle   = puz.slice();
+    solution = sol;
+    given    = puz.map(v => v !== 0);
+    pencil   = Array.from({length:81}, () => new Set());
+    selected = -1;
+    pencilMode = false;
+    mistakes = 0;
+    history  = [];
+    gameOver = false;
+    document.getElementById('pencil-btn').classList.remove('active-tool');
+    document.getElementById('mistakes').textContent = '0';
+    stopTimer(); startTimer();
+    render();
+    setMsg('');
+  }, 30);
+};
+
+function saveHistory() {
+  history.push({
+    puzzle: puzzle.slice(),
+    pencil: pencil.map(s => new Set(s)),
+    mistakes,
+  });
+}
+
+function placeNum(n) {
+  if (gameOver || selected === -1 || given[selected]) return;
+  if (pencilMode) {
+    saveHistory();
+    if (puzzle[selected] !== 0) return; // don't pencil over a number
+    if (pencil[selected].has(n)) pencil[selected].delete(n);
+    else pencil[selected].add(n);
+    render(); return;
+  }
+  if (puzzle[selected] === n) return; // already placed
+  saveHistory();
+  pencil[selected].clear();
+  puzzle[selected] = n;
+  if (n !== 0 && n !== solution[selected]) {
+    mistakes++;
+    document.getElementById('mistakes').textContent = mistakes;
+    if (mistakes >= 3) {
+      gameOver = true; stopTimer();
+      setMsg('3 mistakes — game over. Try again!');
+      render(); return;
+    }
+  }
+  // Clear pencil marks in peers for this number
+  if (n !== 0 && n === solution[selected]) {
+    peers(selected).forEach(p => pencil[p].delete(n));
+  }
+  if (checkWin()) {
+    gameOver = true; stopTimer();
+    setMsg(`Solved! ${timerVal()} · ${DIFF[diff].label}`);
+    document.getElementById('message').className = 'message win';
+  }
+  render();
+}
+
+window.eraseCell = function() {
+  if (gameOver || selected === -1 || given[selected]) return;
+  saveHistory();
+  puzzle[selected] = 0;
+  pencil[selected].clear();
+  render();
+};
+
+window.undoAction = function() {
+  if (!history.length) return;
+  const s = history.pop();
+  puzzle  = s.puzzle;
+  pencil  = s.pencil;
+  mistakes = s.mistakes;
+  document.getElementById('mistakes').textContent = mistakes;
+  gameOver = false;
+  render();
+};
+
+window.togglePencil = function() {
+  pencilMode = !pencilMode;
+  document.getElementById('pencil-btn').classList.toggle('active-tool', pencilMode);
+};
+
+function checkWin() {
+  return puzzle.every((v, i) => v === solution[i]);
+}
+
+function peers(idx) {
+  const r = Math.floor(idx/9), c = idx%9;
+  const boxR = Math.floor(r/3)*3, boxC = Math.floor(c/3)*3;
+  const set = new Set();
+  for (let i=0;i<9;i++) { set.add(r*9+i); set.add(i*9+c); }
+  for (let dr=0;dr<3;dr++) for (let dc=0;dc<3;dc++) set.add((boxR+dr)*9+(boxC+dc));
+  set.delete(idx);
+  return set;
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function render() {
+  renderBoard();
+  renderNumpad();
+}
+
+function renderBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  const selVal = selected !== -1 ? puzzle[selected] : 0;
+  const peerSet = selected !== -1 ? peers(selected) : new Set();
+
+  for (let i = 0; i < 81; i++) {
+    const r = Math.floor(i/9), c = i%9;
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+
+    // Box borders
+    if (c === 2 || c === 5) cell.classList.add('br');
+    if (r === 2 || r === 5) cell.classList.add('bb');
+
+    if (given[i]) cell.classList.add('given');
+    if (i === selected) cell.classList.add('selected');
+    else if (peerSet.has(i)) cell.classList.add('peer');
+    if (selVal && puzzle[i] === selVal && i !== selected) cell.classList.add('match');
+    if (!given[i] && puzzle[i] !== 0 && puzzle[i] !== solution[i]) cell.classList.add('error');
+
+    if (puzzle[i] !== 0) {
+      const span = document.createElement('span');
+      span.className = 'cell-num';
+      span.textContent = puzzle[i];
+      cell.appendChild(span);
+    } else if (pencil[i].size > 0) {
+      const pg = document.createElement('div');
+      pg.className = 'pencil-grid';
+      for (let n = 1; n <= 9; n++) {
+        const pm = document.createElement('div');
+        pm.className = 'pencil-mark';
+        pm.textContent = pencil[i].has(n) ? n : '';
+        pg.appendChild(pm);
+      }
+      cell.appendChild(pg);
+    }
+
+    cell.addEventListener('pointerup', () => {
+      if (gameOver) return;
+      selected = (selected === i && !given[i]) ? i : i;
+      selected = i;
+      render();
+    });
+
+    board.appendChild(cell);
+  }
+}
+
+function renderNumpad() {
+  const np = document.getElementById('numpad');
+  np.innerHTML = '';
+  // Count remaining placements for each digit
+  const counts = new Array(10).fill(0);
+  for (let i=0;i<81;i++) if (puzzle[i] > 0 && puzzle[i] === solution[i]) counts[puzzle[i]]++;
+
+  for (let n = 1; n <= 9; n++) {
+    const btn = document.createElement('button');
+    btn.className = 'num-btn' + (pencilMode ? ' pencil-mode' : '');
+    btn.textContent = n;
+    const rem = 9 - counts[n];
+    const remSpan = document.createElement('span');
+    remSpan.className = 'remain';
+    remSpan.textContent = rem > 0 ? rem : '';
+    btn.appendChild(remSpan);
+    if (rem === 0) btn.style.opacity = '.3';
+    btn.addEventListener('pointerup', e => { e.stopPropagation(); placeNum(n); });
+    np.appendChild(btn);
+  }
+  // Erase as 10th button
+  const erase = document.createElement('button');
+  erase.className = 'num-btn';
+  erase.textContent = '⌫';
+  erase.style.fontSize = '1rem';
+  erase.addEventListener('pointerup', e => { e.stopPropagation(); eraseCell(); });
+  np.appendChild(erase);
+}
+
+// ── Timer ──────────────────────────────────────────────────────────────────
+function startTimer() {
+  timerSec = 0; updateTimer();
+  timerInt = setInterval(() => { timerSec++; updateTimer(); }, 1000);
+}
+function stopTimer() { clearInterval(timerInt); }
+function updateTimer() {
+  const m = Math.floor(timerSec/60), s = timerSec%60;
+  document.getElementById('timer').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+}
+function timerVal() {
+  const m = Math.floor(timerSec/60), s = timerSec%60;
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+function setMsg(t, cls) {
+  const el = document.getElementById('message');
+  el.textContent = t;
+  el.className = 'message' + (cls ? ' '+cls : '');
+}
+
+// Keyboard support
+window.addEventListener('keydown', e => {
+  if (gameOver) return;
+  const n = parseInt(e.key);
+  if (n >= 1 && n <= 9) placeNum(n);
+  if (e.key === 'Backspace' || e.key === 'Delete') eraseCell();
+  if (e.key === 'p' || e.key === 'P') togglePencil();
+  // Arrow navigation
+  if (selected !== -1) {
+    const r = Math.floor(selected/9), c = selected%9;
+    if (e.key==='ArrowRight' && c<8) { selected++; render(); }
+    if (e.key==='ArrowLeft'  && c>0) { selected--; render(); }
+    if (e.key==='ArrowDown'  && r<8) { selected+=9; render(); }
+    if (e.key==='ArrowUp'    && r>0) { selected-=9; render(); }
+  }
+});
+
+newGame();
+})();
+</script>
+</body>
+</html>
