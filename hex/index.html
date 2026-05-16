@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Hex</title>
+  <style>
+    :root{--bg:#1f2933;--panel:#111827;--text:#f9fafb;--muted:#cbd5e1;--accent:#93c5fd;--red:#e84c4c;--blue:#4c9ee8}
+    *,*::before,*::after{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif}
+    body{display:flex;justify-content:center;padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom)}
+    main{width:min(100%,560px);padding:14px 0 28px}
+    h1{margin:0 0 2px;font-size:clamp(1.4rem,6vw,2rem)}
+    .sub{color:var(--muted);font-size:.85rem;margin-bottom:12px}
+    .panel{background:color-mix(in srgb,var(--panel) 92%,white);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .status{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+    .stat{padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.06)}
+    .stat strong{display:block;font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+    .stat span{display:block;margin-top:3px;font-size:.95rem}
+    .setup-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+    .lbl{font-size:.8rem;color:var(--muted)}
+    .seg{height:32px;padding:0 12px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--muted);font:inherit;font-size:.85rem;cursor:pointer}
+    .seg.active{background:rgba(147,197,253,.2);border-color:var(--accent);color:var(--accent)}
+    .board-wrap{width:100%;margin-bottom:10px;overflow:hidden}
+    canvas{display:block;width:100%;cursor:pointer}
+    .controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+    button{border:0;border-radius:12px;min-height:42px;padding:8px 12px;font:inherit;color:var(--text);background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.12);cursor:pointer}
+    button:active{transform:translateY(1px)}
+    .danger{background:#991b1b}
+    .message{min-height:1.4em;margin-top:8px;color:var(--muted);font-size:.88rem;text-align:center}
+    details{margin-top:10px;color:var(--muted);font-size:.85rem;line-height:1.4}
+    details summary{cursor:pointer;color:var(--accent)}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Hex</h1>
+  <div class="sub">2 players · connect your sides</div>
+  <div class="panel">
+    <div class="setup-row">
+      <span class="lbl">Board:</span>
+      <button class="seg" onclick="setN(7)">7×7</button>
+      <button class="seg active" onclick="setN(11)">11×11</button>
+      <button class="seg" onclick="setN(13)">13×13</button>
+      <button class="seg" onclick="newGame()">New game</button>
+    </div>
+    <div class="status">
+      <div class="stat"><strong>Turn</strong><span id="turn-label" style="color:var(--red)">Red</span></div>
+      <div class="stat"><strong>Goal</strong><span id="goal-label" style="font-size:.78rem">Red: top↔bottom<br>Blue: left↔right</span></div>
+    </div>
+    <div class="board-wrap"><canvas id="board"></canvas></div>
+    <div class="message" id="message">Red connects top to bottom. Blue connects left to right.</div>
+    <div class="controls">
+      <button onclick="undoMove()">Undo</button>
+      <button class="danger" onclick="newGame()">New game</button>
+    </div>
+    <details><summary>Rules</summary>
+      <p><strong>Red</strong> tries to connect the top edge to the bottom edge. <strong>Blue</strong> tries to connect the left edge to the right edge. Take turns placing one stone. No draws are possible. The pie rule: Blue may swap sides after Red's first move.</p>
+    </details>
+  </div>
+</main>
+<script>
+(()=>{
+"use strict";
+const RED=1,BLUE=2;
+let N=11,board,turn,history,gameOver,canSwap,swapUsed;
+
+window.setN=function(n){
+  N=n;
+  document.querySelectorAll('.seg').forEach((b,i)=>{if(i<3)b.classList.toggle('active',[7,11,13][i]===n)});
+  newGame();
+};
+
+window.newGame=function(){
+  board=Array.from({length:N},()=>new Array(N).fill(0));
+  turn=RED;history=[];gameOver=false;canSwap=true;swapUsed=false;
+  setMsg('Red connects top↔bottom. Blue left↔right. Tap to play.');
+  updateStatus();draw();
+};
+
+function place(r,c){
+  if(gameOver||board[r][c]!==0)return;
+  history.push({board:board.map(row=>row.slice()),turn,canSwap,swapUsed});
+  board[r][c]=turn;
+  canSwap=false;
+  if(checkWin(turn)){
+    gameOver=true;
+    setMsg(`🎉 ${turn===RED?'Red':'Blue'} wins!`);
+    updateStatus();draw();return;
+  }
+  turn=turn===RED?BLUE:RED;
+  updateStatus();draw();
+  setMsg(`${turn===RED?'Red':'Blue'} to play.${turn===BLUE&&!swapUsed&&history.length===1?' (Blue may swap — see below)':''}`);
+}
+
+function swap(){
+  // Blue swaps: find Red's one stone, re-place as Blue at mirrored position
+  if(!canSwap||turn!==BLUE||swapUsed||history.length!==1)return;
+  history.push({board:board.map(r=>r.slice()),turn,canSwap,swapUsed});
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    if(board[r][c]===RED){board[r][c]=0;board[c][r]=BLUE;break;}
+  }
+  swapUsed=true;canSwap=false;
+  turn=RED;
+  setMsg('Swapped! Red to play.');
+  updateStatus();draw();
+}
+
+function checkWin(player){
+  // BFS
+  const visited=new Set();
+  const queue=[];
+  if(player===RED){
+    for(let c=0;c<N;c++)if(board[0][c]===RED){queue.push([0,c]);visited.add(`0,${c}`);}
+  } else {
+    for(let r=0;r<N;r++)if(board[r][0]===BLUE){queue.push([r,0]);visited.add(`${r},0`);}
+  }
+  while(queue.length){
+    const [r,c]=queue.pop();
+    if(player===RED&&r===N-1)return true;
+    if(player===BLUE&&c===N-1)return true;
+    for(const[dr,dc] of [[-1,0],[1,0],[0,-1],[0,1],[-1,1],[1,-1]]){
+      const nr=r+dr,nc=c+dc;
+      const key=`${nr},${nc}`;
+      if(nr>=0&&nr<N&&nc>=0&&nc<N&&board[nr][nc]===player&&!visited.has(key)){
+        visited.add(key);queue.push([nr,nc]);
+      }
+    }
+  }
+  return false;
+}
+
+window.undoMove=function(){
+  if(!history.length)return setMsg('Nothing to undo.');
+  const s=history.pop();
+  board=s.board;turn=s.turn;canSwap=s.canSwap;swapUsed=s.swapUsed;gameOver=false;
+  setMsg(`${turn===RED?'Red':'Blue'} to play.`);
+  updateStatus();draw();
+};
+
+function updateStatus(){
+  const tl=document.getElementById('turn-label');
+  tl.textContent=gameOver?'Done':(turn===RED?'Red':'Blue');
+  tl.style.color=turn===RED?'var(--red)':'var(--blue)';
+}
+
+// ── Canvas ──────────────────────────────────────────────────────────────
+const canvas=document.getElementById('board');
+const ctx=canvas.getContext('2d');
+let HEX_SIZE,OX,OY;
+
+function hexCenter(r,c){
+  const x=OX+c*HEX_SIZE*1.732+r*HEX_SIZE*0.866;
+  const y=OY+r*HEX_SIZE*1.5;
+  return[x,y];
+}
+
+function hexPath(cx,cy,s){
+  ctx.beginPath();
+  for(let i=0;i<6;i++){
+    const a=Math.PI/180*(60*i-30);
+    const x=cx+s*Math.cos(a),y=cy+s*Math.sin(a);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+}
+
+function draw(){
+  const wrap=canvas.parentElement;
+  const W=wrap.offsetWidth;
+  // Compute size to fit
+  HEX_SIZE=Math.floor(W/(N*1.9+1));
+  const canvW=W;
+  const canvH=Math.ceil(HEX_SIZE*(N*1.5+0.5)+HEX_SIZE*2);
+  const dpr=Math.max(1,window.devicePixelRatio||1);
+  canvas.width=canvW*dpr;canvas.height=canvH*dpr;
+  canvas.style.height=canvH+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  OX=HEX_SIZE*1.2;OY=HEX_SIZE*1.2;
+
+  ctx.fillStyle='#0d0d11';ctx.fillRect(0,0,canvW,canvH);
+
+  // Border highlights (edges)
+  // Top/Bottom = RED; Left/Right = BLUE
+  for(let c=0;c<N;c++){
+    const[x0,y0]=hexCenter(0,c);
+    hexPath(x0,y0,HEX_SIZE*0.98);
+    ctx.fillStyle='rgba(232,76,76,.15)';ctx.fill();
+    const[x1,y1]=hexCenter(N-1,c);
+    hexPath(x1,y1,HEX_SIZE*0.98);
+    ctx.fillStyle='rgba(232,76,76,.15)';ctx.fill();
+  }
+  for(let r=0;r<N;r++){
+    const[x0,y0]=hexCenter(r,0);
+    hexPath(x0,y0,HEX_SIZE*0.98);
+    ctx.fillStyle='rgba(76,158,232,.15)';ctx.fill();
+    const[x1,y1]=hexCenter(r,N-1);
+    hexPath(x1,y1,HEX_SIZE*0.98);
+    ctx.fillStyle='rgba(76,158,232,.15)';ctx.fill();
+  }
+
+  // Cells
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const[cx,cy]=hexCenter(r,c);
+    hexPath(cx,cy,HEX_SIZE*0.92);
+    if(board[r][c]===RED)ctx.fillStyle='#e84c4c';
+    else if(board[r][c]===BLUE)ctx.fillStyle='#4c9ee8';
+    else ctx.fillStyle='#2a2d38';
+    ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.07)';ctx.lineWidth=1;ctx.stroke();
+  }
+}
+
+canvas.addEventListener('pointerup',ev=>{
+  if(gameOver)return;
+  const rect=canvas.getBoundingClientRect();
+  const mx=ev.clientX-rect.left,my=ev.clientY-rect.top;
+  let best=null,bestD=HEX_SIZE;
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const[cx,cy]=hexCenter(r,c);
+    const d=Math.hypot(mx-cx,my-cy);
+    if(d<bestD){bestD=d;best=[r,c];}
+  }
+  if(best)place(best[0],best[1]);
+});
+
+function setMsg(t){document.getElementById('message').textContent=t}
+window.addEventListener('resize',draw);
+
+// Swap button
+const swapBtn=document.createElement('button');
+swapBtn.textContent='Swap (Blue)';swapBtn.style.marginTop='8px';swapBtn.style.width='100%';
+swapBtn.onclick=swap;
+document.querySelector('.controls').after(swapBtn);
+// Show/hide based on eligibility — update in draw
+const origDraw=draw;
+
+newGame();
+})();
+</script>
+</body>
+</html>
