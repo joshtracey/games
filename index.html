@@ -19,17 +19,12 @@
     body { display: flex; flex-direction: column; align-items: center; padding: 28px 16px 40px; }
     .wrap { width: 100%; max-width: 680px; }
 
-    header { margin-bottom: 28px; }
+    header { margin-bottom: 20px; }
     h1 {
       font-family: 'Playfair Display', serif; font-weight: 700;
       font-size: clamp(2.2rem, 8vw, 3.4rem); line-height: .95; letter-spacing: -.02em;
     }
     h1 em { font-style: italic; font-weight: 400; color: var(--muted); }
-
-    .section-label {
-      font-size: .65rem; letter-spacing: .16em; text-transform: uppercase;
-      color: var(--muted); margin: 20px 0 7px; padding-left: 2px;
-    }
 
     .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
 
@@ -68,6 +63,7 @@
     .c-24::before         { background: #b45309; }
     .c-sudoku::before     { background: #6366f1; }
     .c-crafting::before   { background: #4ade80; }
+    .c-dnd::before        { background: #a855f7; }
 
     .rules-link {
       display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -90,7 +86,6 @@
       <h1>Classic <em>games</em></h1>
     </header>
 
-    <div class="section-label">Board &amp; Strategy</div>
     <div class="grid">
       <a href="go/" class="card c-go">
         <div class="icon">⬤</div>
@@ -116,10 +111,6 @@
         <div class="icon">⊞</div>
         <div class="info"><div class="game-name">Quoridor</div><div class="game-meta">2–4P</div></div>
       </a>
-    </div>
-
-    <div class="section-label">Multiplayer &amp; Placement</div>
-    <div class="grid">
       <a href="backgammon/" class="card c-backgammon">
         <div class="icon">⬡</div>
         <div class="info"><div class="game-name">Backgammon</div><div class="game-meta">2P</div></div>
@@ -136,10 +127,6 @@
         <div class="icon">∷</div>
         <div class="info"><div class="game-name">Dots &amp; Boxes</div><div class="game-meta">2–4P</div></div>
       </a>
-    </div>
-
-    <div class="section-label">Dice &amp; Cards</div>
-    <div class="grid">
       <a href="settlers/" class="card c-settlers">
         <div class="icon">⚄</div>
         <div class="info"><div class="game-name">Settlers Dice</div><div class="game-meta">1–4P</div></div>
@@ -148,10 +135,6 @@
         <div class="icon">♣</div>
         <div class="info"><div class="game-name">Cribbage</div><div class="game-meta">2–3P</div></div>
       </a>
-    </div>
-
-    <div class="section-label">Puzzle &amp; Solo</div>
-    <div class="grid">
       <a href="sudoku/" class="card c-sudoku">
         <div class="icon">#</div>
         <div class="info"><div class="game-name">Sudoku</div><div class="game-meta">1P</div></div>
@@ -163,6 +146,10 @@
       <a href="crafting-puzzle/" class="card c-crafting">
         <div class="icon">⚒</div>
         <div class="info"><div class="game-name">Crafting Puzzle</div><div class="game-meta">1P</div></div>
+      </a>
+      <a href="character-sheet/" class="card c-dnd">
+        <div class="icon">⚔</div>
+        <div class="info"><div class="game-name">Character Sheet</div><div class="game-meta">5e · SRD</div></div>
       </a>
     </div>
 
