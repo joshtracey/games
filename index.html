@@ -22,64 +22,64 @@
     header { margin-bottom: 28px; }
     h1 {
       font-family: 'Playfair Display', serif; font-weight: 700;
-      font-size: clamp(2.2rem, 8vw, 3.4rem); line-height: .95; letter-spacing: -.02em; margin-bottom: 8px;
+      font-size: clamp(2.2rem, 8vw, 3.4rem); line-height: .95; letter-spacing: -.02em;
     }
     h1 em { font-style: italic; font-weight: 400; color: var(--muted); }
-    .tagline { font-size: .8rem; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
 
     .section-label {
-      font-size: .68rem; letter-spacing: .16em; text-transform: uppercase;
-      color: var(--muted); margin: 22px 0 8px; padding-left: 2px;
+      font-size: .65rem; letter-spacing: .16em; text-transform: uppercase;
+      color: var(--muted); margin: 20px 0 7px; padding-left: 2px;
     }
 
-    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
 
     .card {
-      display: flex; align-items: center; gap: 13px;
+      display: flex; align-items: center; gap: 12px;
       text-decoration: none; color: var(--text);
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 13px; padding: 13px 15px;
+      border-radius: 12px; padding: 11px 13px;
       transition: border-color .18s, transform .18s;
       position: relative; overflow: hidden;
     }
     .card::before {
       content: ''; position: absolute; left: 0; top: 0; bottom: 0;
-      width: 3px; border-radius: 13px 0 0 13px;
+      width: 3px; border-radius: 12px 0 0 12px;
     }
-    .card:hover { border-color: rgba(255,255,255,.16); transform: translateY(-2px); }
+    .card:hover { border-color: rgba(255,255,255,.15); transform: translateY(-2px); }
     .card:active { transform: translateY(0); }
 
-    .icon { font-size: 1.4rem; line-height: 1; flex-shrink: 0; width: 28px; text-align: center; }
+    .icon { font-size: 1.3rem; line-height: 1; flex-shrink: 0; width: 26px; text-align: center; }
     .info { min-width: 0; }
-    .game-name { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 700; line-height: 1.1; }
-    .game-desc { font-size: .72rem; color: var(--muted); margin-top: 2px; line-height: 1.3; }
+    .game-name { font-family: 'Playfair Display', serif; font-size: .95rem; font-weight: 700; line-height: 1.1; }
+    .game-meta { font-size: .68rem; color: var(--muted); margin-top: 1px; }
 
-    .c-go::before       { background: #d97706; }
-    .c-chess::before    { background: #9333ea; }
-    .c-reversi::before  { background: #0891b2; }
-    .c-hex::before      { background: #0e7490; }
-    .c-morris::before   { background: #be185d; }
-    .c-quoridor::before { background: #0f766e; }
+    .c-go::before         { background: #d97706; }
+    .c-chess::before      { background: #9333ea; }
+    .c-reversi::before    { background: #0891b2; }
+    .c-hex::before        { background: #0e7490; }
+    .c-morris::before     { background: #be185d; }
+    .c-quoridor::before   { background: #0f766e; }
     .c-backgammon::before { background: #2563eb; }
-    .c-blokus::before   { background: #f59e0b; }
-    .c-3xo::before      { background: #e84c4c; }
-    .c-dab::before      { background: #7c3aed; }
-    .c-settlers::before { background: #65a30d; }
-    .c-cribbage::before { background: #16a34a; }
-    .c-24::before       { background: #b45309; }
-    .c-sudoku::before   { background: #6366f1; }
+    .c-blokus::before     { background: #f59e0b; }
+    .c-3xo::before        { background: #e84c4c; }
+    .c-dab::before        { background: #7c3aed; }
+    .c-settlers::before   { background: #65a30d; }
+    .c-cribbage::before   { background: #16a34a; }
+    .c-24::before         { background: #b45309; }
+    .c-sudoku::before     { background: #6366f1; }
+    .c-crafting::before   { background: #4ade80; }
 
     .rules-link {
       display: flex; align-items: center; justify-content: center; gap: 8px;
       text-decoration: none; margin-top: 10px;
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 13px; padding: 13px 16px;
-      color: var(--muted); font-size: .82rem;
+      border-radius: 12px; padding: 11px 16px;
+      color: var(--muted); font-size: .8rem;
       transition: border-color .18s, color .18s;
     }
-    .rules-link:hover { border-color: rgba(255,255,255,.16); color: var(--text); }
+    .rules-link:hover { border-color: rgba(255,255,255,.15); color: var(--text); }
 
-    footer { margin-top: 22px; font-size: .72rem; color: var(--muted); text-align: center; }
+    footer { margin-top: 20px; font-size: .7rem; color: var(--muted); text-align: center; }
 
     @media (max-width: 400px) { .grid { grid-template-columns: 1fr; } }
   </style>
@@ -88,82 +88,85 @@
   <div class="wrap">
     <header>
       <h1>Classic <em>games</em></h1>
-      <div class="tagline">Pass &amp; play · no accounts · no ads</div>
     </header>
 
-    <div class="section-label">Board &amp; strategy</div>
+    <div class="section-label">Board &amp; Strategy</div>
     <div class="grid">
       <a href="go/" class="card c-go">
         <div class="icon">⬤</div>
-        <div class="info"><div class="game-name">Go</div><div class="game-desc">2 players · 9×9 to 19×19</div></div>
+        <div class="info"><div class="game-name">Go</div><div class="game-meta">2P</div></div>
       </a>
       <a href="chess/" class="card c-chess">
         <div class="icon">♟</div>
-        <div class="info"><div class="game-name">Chess</div><div class="game-desc">2 players · full rules</div></div>
+        <div class="info"><div class="game-name">Chess</div><div class="game-meta">2P</div></div>
       </a>
       <a href="reversi/" class="card c-reversi">
         <div class="icon">⊙</div>
-        <div class="info"><div class="game-name">Reversi</div><div class="game-desc">2 players · flip &amp; flank</div></div>
+        <div class="info"><div class="game-name">Reversi</div><div class="game-meta">2P</div></div>
       </a>
       <a href="hex/" class="card c-hex">
         <div class="icon">⬡</div>
-        <div class="info"><div class="game-name">Hex</div><div class="game-desc">2 players · connect your sides</div></div>
+        <div class="info"><div class="game-name">Hex</div><div class="game-meta">2P</div></div>
       </a>
       <a href="9menmorris/" class="card c-morris">
         <div class="icon">✦</div>
-        <div class="info"><div class="game-name">Nine Men's Morris</div><div class="game-desc">2 players · mill &amp; capture</div></div>
+        <div class="info"><div class="game-name">Nine Men's Morris</div><div class="game-meta">2P</div></div>
       </a>
       <a href="quoridor/" class="card c-quoridor">
         <div class="icon">⊞</div>
-        <div class="info"><div class="game-name">Quoridor</div><div class="game-desc">2–4 players · walls &amp; pawns</div></div>
+        <div class="info"><div class="game-name">Quoridor</div><div class="game-meta">2–4P</div></div>
       </a>
     </div>
 
-    <div class="section-label">Multiplayer &amp; placement</div>
+    <div class="section-label">Multiplayer &amp; Placement</div>
     <div class="grid">
       <a href="backgammon/" class="card c-backgammon">
         <div class="icon">⬡</div>
-        <div class="info"><div class="game-name">Backgammon</div><div class="game-desc">2 players · race to bear off</div></div>
+        <div class="info"><div class="game-name">Backgammon</div><div class="game-meta">2P</div></div>
       </a>
       <a href="blokus/" class="card c-blokus">
         <div class="icon">▦</div>
-        <div class="info"><div class="game-name">Blokus</div><div class="game-desc">2–4 players · polyominoes</div></div>
+        <div class="info"><div class="game-name">Blokus</div><div class="game-meta">2–4P</div></div>
       </a>
       <a href="3xo/" class="card c-3xo">
         <div class="icon">◎</div>
-        <div class="info"><div class="game-name">3XO</div><div class="game-desc">2–4 players · ring strategy</div></div>
+        <div class="info"><div class="game-name">3XO</div><div class="game-meta">2–4P</div></div>
       </a>
       <a href="dots-and-boxes/" class="card c-dab">
         <div class="icon">∷</div>
-        <div class="info"><div class="game-name">Dots &amp; Boxes</div><div class="game-desc">2–4 players · claim boxes</div></div>
+        <div class="info"><div class="game-name">Dots &amp; Boxes</div><div class="game-meta">2–4P</div></div>
       </a>
     </div>
 
-    <div class="section-label">Dice &amp; cards</div>
+    <div class="section-label">Dice &amp; Cards</div>
     <div class="grid">
       <a href="settlers/" class="card c-settlers">
         <div class="icon">⚄</div>
-        <div class="info"><div class="game-name">Settlers Dice</div><div class="game-desc">1–4 players · roll &amp; build</div></div>
+        <div class="info"><div class="game-name">Settlers Dice</div><div class="game-meta">1–4P</div></div>
       </a>
       <a href="cribbage/" class="card c-cribbage">
         <div class="icon">♣</div>
-        <div class="info"><div class="game-name">Cribbage</div><div class="game-desc">2–3 players · scoreboard</div></div>
+        <div class="info"><div class="game-name">Cribbage</div><div class="game-meta">2–3P</div></div>
       </a>
     </div>
 
-    <div class="section-label">Puzzle &amp; solo</div>
+    <div class="section-label">Puzzle &amp; Solo</div>
     <div class="grid">
       <a href="sudoku/" class="card c-sudoku">
         <div class="icon">#</div>
-        <div class="info"><div class="game-name">Sudoku</div><div class="game-desc">Solo · easy / medium / hard</div></div>
+        <div class="info"><div class="game-name">Sudoku</div><div class="game-meta">1P</div></div>
       </a>
       <a href="24game/" class="card c-24">
         <div class="icon">✕</div>
-        <div class="info"><div class="game-name">24 Game</div><div class="game-desc">1–4 players · make 24</div></div>
+        <div class="info"><div class="game-name">24 Game</div><div class="game-meta">1–4P</div></div>
+      </a>
+      <a href="crafting-puzzle/" class="card c-crafting">
+        <div class="icon">⚒</div>
+        <div class="info"><div class="game-name">Crafting Puzzle</div><div class="game-meta">1P</div></div>
       </a>
     </div>
 
-    <a href="rules/" class="rules-link">📖 &nbsp;Rules &amp; instructions for all games →</a>
+    <a href="rules/" class="rules-link">📖 Rules &amp; instructions →</a>
     <footer>joshtracey.github.io/games</footer>
   </div>
 </body>
