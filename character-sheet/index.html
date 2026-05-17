@@ -708,15 +708,19 @@ function renderAbilityGrid() {
   ABILITIES.forEach(ab => {
     const score = char.abilities[ab];
     const m = mod(score);
-    el.innerHTML += `
-      <div class="ability">
-        <div class="ability-name">${ab}</div>
-        <div class="ability-score-wrap">
-          <input class="ability-score" type="number" value="${score}" min="1" max="30"
-            onchange="char.abilities['${ab}']=+this.value;updateAll()">
-        </div>
-        <div class="ability-mod ${m>0?'pos':m<0?'neg':'zero'}">${modStr(m)}</div>
-      </div>`;
+    const div = document.createElement('div');
+    div.className = 'ability';
+    div.innerHTML = `
+      <div class="ability-name">${ab}</div>
+      <div class="ability-score-wrap">
+        <input class="ability-score" type="number" value="${score}" min="1" max="30" data-ab="${ab}">
+      </div>
+      <div class="ability-mod ${m>0?'pos':m<0?'neg':'zero'}" id="mod-${ab}">${modStr(m)}</div>`;
+    div.querySelector('input').addEventListener('change', function() {
+      char.abilities[this.dataset.ab] = +this.value;
+      updateAll();
+    });
+    el.appendChild(div);
   });
 }
 
@@ -951,6 +955,8 @@ window.updateTitle = function() {
   // name is the contenteditable title itself — nothing extra needed
   char.name = document.getElementById('app-title').textContent.trim();
 };
+
+window.toggleInspiration = function() {
   char.inspiration = !char.inspiration;
   document.getElementById('inspiration-btn').classList.toggle('lit', char.inspiration);
 };
