@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Crafting Puzzle</title>
+  <style>
+    :root {
+      --bg:#1a1a1a; --panel:#222; --surface:#2a2a2a;
+      --border:rgba(255,255,255,.1); --text:#f0ede8; --muted:#6b7280;
+      --accent:#4ade80; --gold:#f59e0b; --err:#ef4444;
+      --minecraft-green:#3a7d44; --minecraft-dark:#1a1a0a;
+    }
+    *,*::before,*::after{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif}
+    body{display:flex;justify-content:center;padding:env(safe-area-inset-top) 10px env(safe-area-inset-bottom)}
+    main{width:min(100%,520px);padding:14px 0 32px}
+
+    /* Header */
+    .game-header{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+    h1{margin:0;font-size:clamp(1.4rem,6vw,1.9rem);font-weight:800;letter-spacing:-.01em;
+      color:var(--accent);text-shadow:0 0 20px rgba(74,222,128,.3)}
+    .sub{color:var(--muted);font-size:.8rem;margin-bottom:14px}
+
+    /* Controls */
+    .controls{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+    .seg{height:30px;padding:0 11px;border-radius:6px;border:1px solid var(--border);
+      background:var(--surface);color:var(--muted);font:inherit;font-size:.8rem;cursor:pointer}
+    .seg.active{background:rgba(74,222,128,.15);border-color:rgba(74,222,128,.5);color:var(--accent)}
+    .seg:active{transform:scale(.96)}
+    .new-btn{margin-left:auto;height:30px;padding:0 13px;border-radius:6px;
+      border:1px solid rgba(74,222,128,.4);background:rgba(74,222,128,.1);
+      color:var(--accent);font:inherit;font-size:.8rem;cursor:pointer}
+    .new-btn:active{opacity:.8}
+
+    /* Status */
+    .status-bar{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+    .timer{font-size:.95rem;font-weight:700;color:var(--gold);min-width:44px}
+    .puzzle-id{font-size:.75rem;color:var(--muted);flex:1}
+    .check-btn{height:32px;padding:0 14px;border-radius:6px;border:none;
+      background:var(--accent);color:#0a1a0a;font:inherit;font-size:.82rem;
+      font-weight:700;cursor:pointer}
+    .check-btn:active{opacity:.85}
+
+    /* Clues panel */
+    .clues-panel{background:var(--panel);border:1px solid var(--border);
+      border-radius:12px;padding:12px;margin-bottom:12px}
+    .clues-label{font-size:.65rem;letter-spacing:.14em;text-transform:uppercase;
+      color:var(--muted);margin-bottom:8px}
+    .clues-list{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start}
+
+    /* Individual clue */
+    .clue{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+      padding:6px;display:flex;flex-direction:column;align-items:center;gap:3px}
+    .clue-type{font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+    .clue-grid{display:grid;gap:2px}
+    .clue-cell{width:32px;height:32px;border-radius:4px;background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;
+      justify-content:center;font-size:18px;line-height:1}
+    .clue-cell.empty{background:transparent;border:1px dashed rgba(255,255,255,.1)}
+    .clue-row{display:flex;gap:2px;align-items:center}
+    .clue-sep{font-size:.7rem;color:var(--muted);padding:0 2px}
+
+    /* Main grid */
+    .grid-wrap{width:100%;margin-bottom:12px}
+    .grid{display:grid;gap:4px;width:100%}
+    .gcell{
+      aspect-ratio:1/1;border-radius:8px;border:2px solid rgba(255,255,255,.12);
+      background:var(--surface);cursor:pointer;display:flex;align-items:center;
+      justify-content:center;font-size:clamp(26px,9vw,44px);
+      transition:all .12s;position:relative;user-select:none;
+    }
+    .gcell:active{transform:scale(.93)}
+    .gcell.selected{border-color:var(--accent);background:rgba(74,222,128,.12);
+      box-shadow:0 0 12px rgba(74,222,128,.2)}
+    .gcell.filled{background:rgba(255,255,255,.07)}
+    .gcell.correct{border-color:rgba(74,222,128,.6);background:rgba(74,222,128,.08)}
+    .gcell.wrong{border-color:rgba(239,68,68,.6);background:rgba(239,68,68,.1)}
+    .gcell.hint-highlight{border-color:rgba(245,158,11,.7);background:rgba(245,158,11,.1)}
+
+    /* Item tray */
+    .tray-label{font-size:.65rem;letter-spacing:.14em;text-transform:uppercase;
+      color:var(--muted);margin-bottom:6px}
+    .tray{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+    .tray-item{
+      width:60px;height:60px;border-radius:8px;border:2px solid rgba(255,255,255,.12);
+      background:var(--surface);cursor:pointer;display:flex;align-items:center;
+      justify-content:center;font-size:34px;transition:all .12s;
+      user-select:none;
+    }
+    .tray-item:active{transform:scale(.92)}
+    .tray-item.selected-item{border-color:var(--accent);background:rgba(74,222,128,.15);
+      box-shadow:0 0 10px rgba(74,222,128,.3)}
+    .tray-item.placed{opacity:.25;pointer-events:none}
+
+    /* Tools */
+    .tools{display:flex;gap:6px;margin-bottom:10px}
+    .tool{flex:1;height:36px;border-radius:8px;border:1px solid var(--border);
+      background:var(--surface);color:var(--muted);font:inherit;font-size:.78rem;cursor:pointer}
+    .tool:active{transform:scale(.97)}
+    .tool.danger{color:#f87171;border-color:rgba(248,113,113,.2)}
+
+    /* Message */
+    .message{text-align:center;font-size:.9rem;min-height:1.5em;padding:6px;
+      border-radius:8px;margin-bottom:8px;color:var(--muted)}
+    .message.win{color:var(--accent);font-weight:700;font-size:1rem}
+    .message.err{color:var(--err)}
+    .message.ok{color:var(--accent)}
+
+    /* Win overlay */
+    .win-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);
+      backdrop-filter:blur(6px);align-items:center;justify-content:center;
+      z-index:100;flex-direction:column;gap:14px;text-align:center;padding:20px}
+    .win-overlay.show{display:flex}
+    .win-title{font-size:clamp(2rem,10vw,3.5rem);font-weight:800;color:var(--accent);
+      text-shadow:0 0 30px rgba(74,222,128,.5)}
+    .win-sub{color:var(--muted);font-size:.9rem}
+    .win-btn{height:44px;padding:0 24px;border-radius:10px;
+      border:1px solid rgba(74,222,128,.4);background:rgba(74,222,128,.15);
+      color:var(--accent);font:inherit;font-size:1rem;font-weight:700;cursor:pointer}
+
+    details{color:var(--muted);font-size:.82rem;line-height:1.5;margin-top:8px}
+    details summary{cursor:pointer;color:rgba(74,222,128,.7)}
+  </style>
+</head>
+<body>
+<main>
+  <div class="game-header">
+    <h1>⚒ Crafting Puzzle</h1>
+  </div>
+  <div class="sub">Place every item on the grid to match all the clues.</div>
+
+  <div class="controls">
+    <button class="seg active" onclick="setSize(3)">3×3</button>
+    <button class="seg" onclick="setSize(4)">4×4</button>
+    <button class="seg active" onclick="setDiff('easy')">Easy</button>
+    <button class="seg" onclick="setDiff('medium')">Medium</button>
+    <button class="seg" onclick="setDiff('hard')">Hard</button>
+    <button class="new-btn" onclick="newGame()">New puzzle</button>
+  </div>
+
+  <div class="status-bar">
+    <div class="timer" id="timer">0:00</div>
+    <div class="puzzle-id" id="puzzle-id"></div>
+    <button class="check-btn" onclick="checkSolution()">Check ✓</button>
+  </div>
+
+  <div class="clues-panel">
+    <div class="clues-label">Clues — your arrangement must satisfy all of these</div>
+    <div class="clues-list" id="clues-list"></div>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="grid" id="main-grid"></div>
+  </div>
+
+  <div class="tray" id="item-tray"></div>
+
+  <div class="tools">
+    <button class="tool" onclick="eraseSelected()">⌫ Erase</button>
+    <button class="tool" onclick="undoMove()">↩ Undo</button>
+    <button class="tool" onclick="getHint()">💡 Hint</button>
+    <button class="tool danger" onclick="newGame()">↺ Reset</button>
+  </div>
+
+  <div class="message" id="message">Select an item from the tray, then tap a grid cell to place it.</div>
+
+  <details>
+    <summary>How to play</summary>
+    <p>Place each item on the grid exactly once. Each clue shows a pattern that must appear in your arrangement — a 2×2 block, a row pair, or a column pair. Use logic to deduce the only valid arrangement. There is exactly one solution per puzzle.</p>
+  </details>
+</main>
+
+<div class="win-overlay" id="win-overlay">
+  <div class="win-title">⚒ Crafted!</div>
+  <div class="win-sub" id="win-sub"></div>
+  <button class="win-btn" onclick="newGame()">Next puzzle</button>
+</div>
+
+<script>
+(()=>{
+"use strict";
+
+// ── Items ──────────────────────────────────────────────────────────────────
+const ITEMS_3 = [
+  {id:'sword',    emoji:'🗡️',  name:'Sword'},
+  {id:'shield',   emoji:'🛡️',  name:'Shield'},
+  {id:'helmet',   emoji:'⛑️',  name:'Helmet'},
+  {id:'bow',      emoji:'🏹',  name:'Bow'},
+  {id:'pickaxe',  emoji:'⛏️',  name:'Pickaxe'},
+  {id:'axe',      emoji:'🪓',  name:'Axe'},
+  {id:'torch',    emoji:'🔦',  name:'Torch'},
+  {id:'arrow',    emoji:'🪃',  name:'Arrow'},
+  {id:'boots',    emoji:'👢',  name:'Boots'},
+];
+
+const ITEMS_4 = [
+  {id:'sword',      emoji:'🗡️',  name:'Sword'},
+  {id:'shield',     emoji:'🛡️',  name:'Shield'},
+  {id:'helmet',     emoji:'⛑️',  name:'Helmet'},
+  {id:'chestplate', emoji:'🦺',  name:'Chest'},
+  {id:'leggings',   emoji:'👖',  name:'Legs'},
+  {id:'boots',      emoji:'👢',  name:'Boots'},
+  {id:'bow',        emoji:'🏹',  name:'Bow'},
+  {id:'arrow',      emoji:'🪃',  name:'Arrow'},
+  {id:'pickaxe',    emoji:'⛏️',  name:'Pickaxe'},
+  {id:'axe',        emoji:'🪓',  name:'Axe'},
+  {id:'shovel',     emoji:'🪣',  name:'Shovel'},
+  {id:'torch',      emoji:'🔦',  name:'Torch'},
+  {id:'diamond',    emoji:'💎',  name:'Diamond'},
+  {id:'gold',       emoji:'🪙',  name:'Gold'},
+  {id:'wood',       emoji:'🪵',  name:'Wood'},
+  {id:'stone',      emoji:'🪨',  name:'Stone'},
+];
+
+// ── Puzzle bank ────────────────────────────────────────────────────────────
+// Each puzzle: { size, solution (flat array of item ids), clues[], difficulty }
+// Clue types:
+//   {type:'block2x2', r, c}          — 2×2 sub-grid starting at (r,c) in solution
+//   {type:'row-pair', row, items:[a,b], ordered:bool}
+//   {type:'col-pair', col, items:[a,b], ordered:bool}
+//   {type:'adjacent', a, b}           — must be adjacent (any direction)
+
+// Helper to build a puzzle from a solution grid + clue specs
+function makePuzzle(size, sol, clueSpecs, difficulty) {
+  return { size, sol, clueSpecs, difficulty };
+}
+
+// 3×3 puzzles (solution is row-major, 9 items)
+const PUZZLES_3_EASY = [
+  makePuzzle(3,
+    ['sword','bow','helmet',
+     'torch','shield','axe',
+     'pickaxe','boots','arrow'],
+    [
+      {type:'block2x2', r:0, c:0}, // sword,bow / torch,shield
+      {type:'block2x2', r:1, c:1}, // shield,axe / boots,arrow
+      {type:'row-pair', row:2, items:['pickaxe','boots'], ordered:true},
+      {type:'col-pair', col:2, items:['helmet','axe'], ordered:true},
+    ], 'easy'),
+
+  makePuzzle(3,
+    ['boots','pickaxe','torch',
+     'helmet','arrow','shield',
+     'axe','sword','bow'],
+    [
+      {type:'block2x2', r:0, c:1}, // pickaxe,torch / arrow,shield
+      {type:'row-pair', row:0, items:['boots','torch'], ordered:false},
+      {type:'col-pair', col:0, items:['boots','helmet'], ordered:true},
+      {type:'adjacent', a:'sword', b:'bow'},
+    ], 'easy'),
+
+  makePuzzle(3,
+    ['arrow','shield','axe',
+     'bow','helmet','boots',
+     'torch','sword','pickaxe'],
+    [
+      {type:'block2x2', r:0, c:0}, // arrow,shield / bow,helmet
+      {type:'row-pair', row:2, items:['torch','sword'], ordered:true},
+      {type:'col-pair', col:2, items:['axe','boots'], ordered:true},
+      {type:'adjacent', a:'sword', b:'pickaxe'},
+    ], 'easy'),
+];
+
+const PUZZLES_3_MEDIUM = [
+  makePuzzle(3,
+    ['helmet','torch','shield',
+     'arrow','axe','sword',
+     'boots','pickaxe','bow'],
+    [
+      {type:'block2x2', r:0, c:1}, // torch,shield / axe,sword
+      {type:'col-pair', col:0, items:['helmet','arrow'], ordered:true},
+      {type:'row-pair', row:2, items:['pickaxe','bow'], ordered:true},
+    ], 'medium'),
+
+  makePuzzle(3,
+    ['shield','boots','arrow',
+     'sword','torch','helmet',
+     'pickaxe','bow','axe'],
+    [
+      {type:'block2x2', r:0, c:0}, // shield,boots / sword,torch
+      {type:'col-pair', col:2, items:['arrow','helmet'], ordered:true},
+      {type:'adjacent', a:'bow', b:'axe'},
+    ], 'medium'),
+
+  makePuzzle(3,
+    ['pickaxe','helmet','bow',
+     'axe','arrow','shield',
+     'torch','boots','sword'],
+    [
+      {type:'block2x2', r:1, c:0}, // axe,arrow / torch,boots
+      {type:'col-pair', col:2, items:['bow','shield'], ordered:true},
+      {type:'adjacent', a:'helmet','b':'arrow'},
+    ], 'medium'),
+];
+
+const PUZZLES_3_HARD = [
+  makePuzzle(3,
+    ['bow','axe','boots',
+     'pickaxe','shield','arrow',
+     'sword','helmet','torch'],
+    [
+      {type:'adjacent', a:'bow', b:'axe'},
+      {type:'adjacent', a:'shield', b:'arrow'},
+      {type:'col-pair', col:0, items:['bow','pickaxe'], ordered:true},
+      {type:'row-pair', row:2, items:['helmet','torch'], ordered:true},
+    ], 'hard'),
+
+  makePuzzle(3,
+    ['torch','arrow','pickaxe',
+     'shield','boots','helmet',
+     'bow','sword','axe'],
+    [
+      {type:'adjacent', a:'torch', b:'arrow'},
+      {type:'block2x2', r:0, c:1}, // arrow,pickaxe / boots,helmet
+      {type:'row-pair', row:2, items:['bow','sword'], ordered:true},
+    ], 'hard'),
+];
+
+// 4×4 puzzles (16 items)
+const PUZZLES_4_EASY = [
+  makePuzzle(4,
+    ['sword','shield','helmet','chestplate',
+     'leggings','boots','bow','arrow',
+     'pickaxe','axe','shovel','torch',
+     'diamond','gold','wood','stone'],
+    [
+      {type:'block2x2', r:0, c:0}, // sword,shield / leggings,boots
+      {type:'block2x2', r:2, c:2}, // shovel,torch / wood,stone
+      {type:'row-pair', row:0, items:['helmet','chestplate'], ordered:true},
+      {type:'col-pair', col:1, items:['shield','boots'], ordered:true},
+      {type:'adjacent', a:'diamond', b:'gold'},
+    ], 'easy'),
+
+  makePuzzle(4,
+    ['boots','diamond','sword','torch',
+     'helmet','gold','shield','axe',
+     'wood','arrow','chestplate','bow',
+     'stone','leggings','pickaxe','shovel'],
+    [
+      {type:'block2x2', r:0, c:0}, // boots,diamond / helmet,gold
+      {type:'block2x2', r:2, c:2}, // chestplate,bow / pickaxe,shovel
+      {type:'row-pair', row:0, items:['sword','torch'], ordered:true},
+      {type:'col-pair', col:3, items:['torch','axe'], ordered:true},
+      {type:'adjacent', a:'stone', b:'leggings'},
+    ], 'easy'),
+];
+
+const PUZZLES_4_MEDIUM = [
+  makePuzzle(4,
+    ['pickaxe','helmet','gold','boots',
+     'diamond','sword','bow','leggings',
+     'torch','shield','axe','chestplate',
+     'arrow','wood','stone','shovel'],
+    [
+      {type:'block2x2', r:0, c:0}, // pickaxe,helmet / diamond,sword
+      {type:'block2x2', r:2, c:2}, // axe,chestplate / stone,shovel
+      {type:'col-pair', col:2, items:['gold','bow'], ordered:true},
+      {type:'adjacent', a:'arrow', b:'wood'},
+    ], 'medium'),
+];
+
+const PUZZLES_4_HARD = [
+  makePuzzle(4,
+    ['torch','leggings','arrow','gold',
+     'shield','axe','diamond','boots',
+     'wood','chestplate','sword','helmet',
+     'bow','pickaxe','stone','shovel'],
+    [
+      {type:'adjacent', a:'torch', b:'leggings'},
+      {type:'adjacent', a:'shield', b:'axe'},
+      {type:'block2x2', r:1, c:2}, // diamond,boots / sword,helmet
+      {type:'col-pair', col:1, items:['leggings','axe'], ordered:true},
+      {type:'row-pair', row:3, items:['bow','pickaxe'], ordered:true},
+    ], 'hard'),
+];
+
+const PUZZLE_BANK = {
+  3: { easy: PUZZLES_3_EASY, medium: PUZZLES_3_MEDIUM, hard: PUZZLES_3_HARD },
+  4: { easy: PUZZLES_4_EASY, medium: PUZZLES_4_MEDIUM, hard: PUZZLES_4_HARD },
+};
+
+// ── State ──────────────────────────────────────────────────────────────────
+let gridSize = 3, diff = 'easy';
+let puzzle, items, grid, selectedItem, history;
+let timerSec = 0, timerInt = null, gameOver = false;
+let puzzleIndex = 0;
+
+window.setSize = function(n) {
+  gridSize = n;
+  document.querySelectorAll('.seg').forEach((b,i) => { if(i<2) b.classList.toggle('active',[3,4][i]===n); });
+  newGame();
+};
+
+window.setDiff = function(d) {
+  diff = d;
+  document.querySelectorAll('.seg').forEach((b,i) => { if(i>=2&&i<5) b.classList.toggle('active',['easy','medium','hard'][i-2]===d); });
+  newGame();
+};
+
+window.newGame = function() {
+  const bank = PUZZLE_BANK[gridSize][diff];
+  if (!bank || !bank.length) {
+    setMsg(`No ${diff} ${gridSize}×${gridSize} puzzles yet — try another difficulty.`, 'err');
+    return;
+  }
+  puzzleIndex = (puzzleIndex + 1) % bank.length;
+  puzzle = bank[puzzleIndex];
+  items = gridSize === 3 ? ITEMS_3 : ITEMS_4;
+  grid = new Array(gridSize * gridSize).fill(null);
+  selectedItem = null;
+  history = [];
+  gameOver = false;
+  document.getElementById('win-overlay').classList.remove('show');
+  document.getElementById('puzzle-id').textContent = `Puzzle #${puzzleIndex+1} · ${diff}`;
+  stopTimer(); startTimer();
+  renderClues();
+  renderGrid();
+  renderTray();
+  setMsg('Select an item from the tray, then tap a grid cell to place it.');
+  // Verify uniqueness in background
+  const itemIds = items.slice(0, gridSize*gridSize).map(x=>x.id);
+  setTimeout(()=>{
+    const sols = findSolutions(gridSize, itemIds, puzzle.clueSpecs, 2);
+    if (sols.length > 1) setMsg('⚠️ This puzzle has multiple solutions — clues may need tightening.', 'err');
+    else if (sols.length === 0) setMsg('⚠️ No solution found for this puzzle.', 'err');
+  }, 50);
+};
+
+// ── Clue rendering ─────────────────────────────────────────────────────────
+function itemEmoji(id) {
+  const it = items.find(x => x.id === id);
+  return it ? it.emoji : '?';
+}
+
+function renderClues() {
+  const el = document.getElementById('clues-list');
+  el.innerHTML = '';
+  for (const clue of puzzle.clueSpecs) {
+    const div = document.createElement('div');
+    div.className = 'clue';
+    if (clue.type === 'block2x2') {
+      div.innerHTML = '<div class="clue-type">2×2 block</div>';
+      const g = document.createElement('div');
+      g.className = 'clue-grid';
+      g.style.gridTemplateColumns = 'repeat(2,1fr)';
+      for (let dr = 0; dr < 2; dr++) {
+        for (let dc = 0; dc < 2; dc++) {
+          const idx = (clue.r + dr) * gridSize + (clue.c + dc);
+          const id = puzzle.sol[idx];
+          const cell = document.createElement('div');
+          cell.className = 'clue-cell';
+          cell.textContent = itemEmoji(id);
+          cell.title = id;
+          g.appendChild(cell);
+        }
+      }
+      div.appendChild(g);
+    } else if (clue.type === 'row-pair') {
+      div.innerHTML = `<div class="clue-type">Same row${clue.ordered?' (in order)':''}</div>`;
+      const row = document.createElement('div');
+      row.className = 'clue-row';
+      clue.items.forEach((id, i) => {
+        if (i > 0) { const sep = document.createElement('div'); sep.className='clue-sep'; sep.textContent=clue.ordered?'→':'·'; row.appendChild(sep); }
+        const cell = document.createElement('div'); cell.className='clue-cell'; cell.textContent=itemEmoji(id); cell.title=id; row.appendChild(cell);
+      });
+      div.appendChild(row);
+    } else if (clue.type === 'col-pair') {
+      div.innerHTML = `<div class="clue-type">Same col${clue.ordered?' (in order)':''}</div>`;
+      const col = document.createElement('div');
+      col.style.display='flex'; col.style.flexDirection='column'; col.style.gap='2px'; col.style.alignItems='center';
+      clue.items.forEach((id, i) => {
+        if (i > 0) { const sep = document.createElement('div'); sep.className='clue-sep'; sep.textContent=clue.ordered?'↓':'·'; col.appendChild(sep); }
+        const cell = document.createElement('div'); cell.className='clue-cell'; cell.textContent=itemEmoji(id); cell.title=id; col.appendChild(cell);
+      });
+      div.appendChild(col);
+    } else if (clue.type === 'adjacent') {
+      div.innerHTML = '<div class="clue-type">Adjacent</div>';
+      const row = document.createElement('div');
+      row.className = 'clue-row';
+      const c1 = document.createElement('div'); c1.className='clue-cell'; c1.textContent=itemEmoji(clue.a); c1.title=clue.a; row.appendChild(c1);
+      const sep = document.createElement('div'); sep.className='clue-sep'; sep.textContent='↔'; row.appendChild(sep);
+      const c2 = document.createElement('div'); c2.className='clue-cell'; c2.textContent=itemEmoji(clue.b); c2.title=clue.b; row.appendChild(c2);
+      div.appendChild(row);
+    }
+    el.appendChild(div);
+  }
+}
+
+// ── Grid rendering ─────────────────────────────────────────────────────────
+function renderGrid() {
+  const el = document.getElementById('main-grid');
+  el.style.gridTemplateColumns = `repeat(${gridSize},1fr)`;
+  el.innerHTML = '';
+  for (let i = 0; i < gridSize * gridSize; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'gcell' + (grid[i] ? ' filled' : '');
+    if (grid[i]) cell.textContent = itemEmoji(grid[i]);
+    cell.addEventListener('pointerup', () => handleCellTap(i));
+    el.appendChild(cell);
+  }
+}
+
+function renderTray() {
+  const el = document.getElementById('item-tray');
+  el.innerHTML = '';
+  items.slice(0, gridSize * gridSize).forEach(item => {
+    const placed = grid.includes(item.id);
+    const div = document.createElement('div');
+    div.className = 'tray-item' + (placed ? ' placed' : '') + (selectedItem === item.id ? ' selected-item' : '');
+    div.innerHTML = `${item.emoji}`;
+    div.addEventListener('pointerup', () => {
+      if (placed) return;
+      selectedItem = selectedItem === item.id ? null : item.id;
+      renderTray();
+    });
+    el.appendChild(div);
+  });
+}
+
+function handleCellTap(idx) {
+  if (gameOver) return;
+  if (selectedItem) {
+    // Place item
+    if (grid[idx] === selectedItem) { grid[idx] = null; } // toggle off
+    else {
+      // Remove item from wherever it currently is
+      const prev = grid.indexOf(selectedItem);
+      if (prev !== -1) grid[prev] = null;
+      saveHistory();
+      grid[idx] = selectedItem;
+    }
+    renderGrid(); renderTray();
+  } else if (grid[idx]) {
+    // Select the item that's already there
+    selectedItem = grid[idx];
+    renderTray();
+  }
+}
+
+// ── Undo ───────────────────────────────────────────────────────────────────
+function saveHistory() {
+  history.push(grid.slice());
+}
+window.undoMove = function() {
+  if (!history.length) return setMsg('Nothing to undo.', '');
+  grid = history.pop();
+  renderGrid(); renderTray();
+  setMsg('Undid last move.', '');
+};
+
+window.eraseSelected = function() {
+  if (!selectedItem) return setMsg('Select an item first.', '');
+  const idx = grid.indexOf(selectedItem);
+  if (idx !== -1) { saveHistory(); grid[idx] = null; renderGrid(); renderTray(); }
+};
+
+// ── Clue checking ──────────────────────────────────────────────────────────
+function cluesSatisfied(g, size, clueSpecs) {
+  for (const clue of clueSpecs) {
+    if (!checkClue(g, size, clue)) return false;
+  }
+  return true;
+}
+
+function checkClue(g, size, clue) {
+  if (clue.type === 'block2x2') {
+    for (let dr = 0; dr < 2; dr++) {
+      for (let dc = 0; dc < 2; dc++) {
+        const solIdx = (clue.r + dr) * size + (clue.c + dc);
+        const expected = puzzle.sol[solIdx];
+        // Find expected item's position in g
+        const gIdx = g.indexOf(expected);
+        if (gIdx === -1) return false;
+        const gr = Math.floor(gIdx / size), gc = gIdx % size;
+        // Must be at relative (dr, dc) from some anchor
+        // Actually: all 4 must form a 2×2 block together
+      }
+    }
+    // Check: the 4 solution items at those positions form a 2×2 block in g
+    const solItems = [];
+    for (let dr = 0; dr < 2; dr++)
+      for (let dc = 0; dc < 2; dc++)
+        solItems.push(puzzle.sol[(clue.r+dr)*size+(clue.c+dc)]);
+    // Find positions of all 4 in g
+    const positions = solItems.map(id => g.indexOf(id));
+    if (positions.some(p => p === -1)) return false;
+    const rows = positions.map(p => Math.floor(p/size));
+    const cols = positions.map(p => p%size);
+    const minR = Math.min(...rows), maxR = Math.max(...rows);
+    const minC = Math.min(...cols), maxC = Math.max(...cols);
+    if (maxR - minR !== 1 || maxC - minC !== 1) return false;
+    // Check arrangement matches
+    for (let dr = 0; dr < 2; dr++) {
+      for (let dc = 0; dc < 2; dc++) {
+        const expected = puzzle.sol[(clue.r+dr)*size+(clue.c+dc)];
+        const gIdx = (minR+dr)*size+(minC+dc);
+        if (g[gIdx] !== expected) return false;
+      }
+    }
+    return true;
+  }
+
+  if (clue.type === 'row-pair') {
+    const [a, b] = clue.items;
+    const ia = g.indexOf(a), ib = g.indexOf(b);
+    if (ia === -1 || ib === -1) return false;
+    const ra = Math.floor(ia/size), rb = Math.floor(ib/size);
+    if (ra !== rb) return false;
+    if (clue.ordered && ia >= ib) return false;
+    return true;
+  }
+
+  if (clue.type === 'col-pair') {
+    const [a, b] = clue.items;
+    const ia = g.indexOf(a), ib = g.indexOf(b);
+    if (ia === -1 || ib === -1) return false;
+    const ca = ia%size, cb = ib%size;
+    if (ca !== cb) return false;
+    if (clue.ordered && ia >= ib) return false;
+    return true;
+  }
+
+  if (clue.type === 'adjacent') {
+    const ia = g.indexOf(clue.a), ib = g.indexOf(clue.b);
+    if (ia === -1 || ib === -1) return false;
+    const ra = Math.floor(ia/size), ca = ia%size;
+    const rb = Math.floor(ib/size), cb = ib%size;
+    return Math.abs(ra-rb) + Math.abs(ca-cb) === 1;
+  }
+  return false;
+}
+
+// ── Constraint solver — finds all arrangements satisfying clues (up to limit) ──
+function findSolutions(size, itemIds, clueSpecs, limit=2) {
+  const results = [];
+  const g = new Array(size*size).fill(null);
+  const remaining = itemIds.slice();
+
+  function bt(pos) {
+    if (results.length >= limit) return;
+    if (pos === size*size) {
+      if (cluesSatisfied(g, size, clueSpecs)) results.push(g.slice());
+      return;
+    }
+    for (let i=0; i<remaining.length; i++) {
+      g[pos] = remaining[i];
+      remaining.splice(i,1);
+      bt(pos+1);
+      remaining.splice(i,0,g[pos]);
+      g[pos] = null;
+      if (results.length >= limit) return;
+    }
+  }
+  bt(0);
+  return results;
+}
+
+window.checkSolution = function() {
+  const filled = grid.filter(Boolean).length;
+  const total = gridSize * gridSize;
+  if (filled < total) {
+    setMsg(`Place all ${total} items first (${total-filled} remaining).`, 'err');
+    return;
+  }
+
+  const gridEl = document.getElementById('main-grid').children;
+  const allCluesOk = cluesSatisfied(grid, gridSize, puzzle.clueSpecs);
+
+  // Highlight per-clue satisfaction
+  if (!allCluesOk) {
+    // Flash red on unsatisfied clues' cells — just flash the whole grid briefly
+    for (let i=0;i<total;i++) { gridEl[i].classList.remove('correct','wrong'); gridEl[i].classList.add('wrong'); }
+    setMsg('Some clues are not satisfied yet. Keep thinking!', 'err');
+    setTimeout(()=>{ for(let i=0;i<total;i++) gridEl[i].classList.remove('correct','wrong'); },1500);
+    return;
+  }
+
+  // All clues satisfied — this is a valid solution
+  for (let i=0;i<total;i++) { gridEl[i].classList.remove('correct','wrong'); gridEl[i].classList.add('correct'); }
+  gameOver = true;
+  stopTimer();
+  const t = timerVal();
+  document.getElementById('win-sub').textContent = `Solved in ${t} · ${diff} ${gridSize}×${gridSize}`;
+  document.getElementById('win-overlay').classList.add('show');
+};
+
+window.getHint = function() {
+  // Find the unique solution (or one of them) and reveal one wrong/empty cell
+  const itemIds = items.slice(0, gridSize*gridSize).map(x=>x.id);
+  setMsg('Finding hint…', '');
+  setTimeout(() => {
+    const sols = findSolutions(gridSize, itemIds, puzzle.clueSpecs, 1);
+    if (!sols.length) { setMsg('No solution found — puzzle may need more clues.', 'err'); return; }
+    const sol = sols[0];
+    // Find first cell where current grid differs from solution
+    for (let i=0;i<gridSize*gridSize;i++) {
+      if (grid[i] !== sol[i]) {
+        const el = document.getElementById('main-grid').children[i];
+        el.classList.add('hint-highlight');
+        const item = items.find(x=>x.id===sol[i]);
+        setMsg(`Hint: cell (row ${Math.floor(i/gridSize)+1}, col ${i%gridSize+1}) should be ${item?.emoji}.`, 'ok');
+        setTimeout(()=>el.classList.remove('hint-highlight'),2500);
+        return;
+      }
+    }
+    setMsg('Everything looks correct!', 'ok');
+  }, 20);
+};
+
+// ── Timer ──────────────────────────────────────────────────────────────────
+function startTimer() {
+  timerSec = 0; updateTimer();
+  timerInt = setInterval(() => { timerSec++; updateTimer(); }, 1000);
+}
+function stopTimer() { clearInterval(timerInt); }
+function updateTimer() {
+  const m = Math.floor(timerSec/60), s = timerSec%60;
+  document.getElementById('timer').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+}
+function timerVal() {
+  const m = Math.floor(timerSec/60), s = timerSec%60;
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+function setMsg(t, cls) {
+  const el = document.getElementById('message');
+  el.textContent = t;
+  el.className = 'message' + (cls ? ' '+cls : '');
+}
+
+// Init
+newGame();
+})();
+</script>
+</body>
+</html>
