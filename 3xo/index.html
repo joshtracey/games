@@ -414,12 +414,11 @@
       }
     }
 
-    // Win type 2: escalating — one ring of each size (S,M,L) across the line, same player
-    // Each cell contributes one specific size: [S,M,L] in some arrangement, all same player
-    const perms = [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
-    for (const perm of perms) {
+    // Win type 2: escalating — S→M→L or L→M→S strictly in line order, same player
+    const orderings = [[0,1,2],[2,1,0]];
+    for (const ord of orderings) {
       for (let p = 0; p < numPlayers; p++) {
-        const valid = cells.every(([r,c], i) => board[r][c][perm[i]] === p);
+        const valid = cells.every(([r,c], i) => board[r][c][ord[i]] === p);
         if (valid) return p;
       }
     }
