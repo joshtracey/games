@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Mancala</title>
+  <style>
+    :root {
+      --bg: #1a1208; --panel: #221808; --surface: #2a2010;
+      --border: rgba(180,140,60,.2); --text: #f0e8d0; --muted: #7a6a48;
+      --gold: #c8962a; --gold-light: #e8b84a;
+      --p1: #e84c4c; --p2: #4c9ee8;
+      --board: #6b3a10; --pit: #4a2808; --stone: #c8b87a;
+    }
+    *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin:0; min-height:100%; background:var(--bg); color:var(--text); font-family:system-ui,sans-serif; }
+    body { display:flex; justify-content:center; padding:env(safe-area-inset-top) 10px env(safe-area-inset-bottom); }
+    main { width:min(100%,480px); padding:14px 0 32px; }
+
+    h1 { margin:0 0 2px; font-size:clamp(1.6rem,7vw,2.2rem); font-weight:800; color:var(--gold-light); }
+    .sub { color:var(--muted); font-size:.8rem; margin-bottom:14px; }
+
+    /* Setup */
+    .setup-row { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
+    .lbl { font-size:.8rem; color:var(--muted); }
+    .seg { height:30px; padding:0 12px; border-radius:6px; border:1px solid var(--border); background:var(--surface); color:var(--muted); font:inherit; font-size:.8rem; cursor:pointer; }
+    .seg.active { background:rgba(200,150,42,.2); border-color:var(--gold); color:var(--gold-light); }
+    .seg:active { transform:scale(.96); }
+
+    /* Turn bar */
+    .turn-bar {
+      display:flex; align-items:center; gap:10px;
+      background:var(--panel); border:1px solid var(--border);
+      border-radius:10px; padding:10px 14px; margin-bottom:14px;
+    }
+    .turn-dot { width:14px; height:14px; border-radius:50%; flex-shrink:0; }
+    .turn-name { font-size:1rem; font-weight:600; flex:1; }
+    .turn-hint { font-size:.75rem; color:var(--muted); }
+
+    /* Scores */
+    .scores { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+    .score-card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px 14px; }
+    .score-card.active-s { border-color:rgba(200,150,42,.5); }
+    .score-name { font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+    .score-val { font-size:1.8rem; font-weight:800; line-height:1.1; }
+
+    /* Board */
+    .board-outer {
+      background:var(--board); border-radius:20px;
+      padding:12px; margin-bottom:14px;
+      box-shadow:0 8px 24px rgba(0,0,0,.4), inset 0 0 20px rgba(0,0,0,.3);
+      border:2px solid rgba(180,140,60,.3);
+    }
+
+    /* Player 2 label (top) */
+    .player-label {
+      text-align:center; font-size:.7rem; letter-spacing:.1em;
+      text-transform:uppercase; margin-bottom:8px; font-weight:600;
+    }
+
+    /* Main board layout: store | pits | store */
+    .board-row {
+      display:grid; gap:6px; align-items:center;
+    }
+    .board-row.main { grid-template-columns:auto 1fr auto; }
+
+    /* Stores */
+    .store {
+      width:52px; min-height:130px; border-radius:26px;
+      background:var(--pit); border:2px solid rgba(180,140,60,.25);
+      display:flex; flex-direction:column; align-items:center;
+      justify-content:center; gap:4px; padding:8px 4px;
+      position:relative; cursor:default;
+    }
+    .store-count {
+      font-size:1.6rem; font-weight:800; line-height:1;
+    }
+    .store-label { font-size:.55rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+
+    /* Pits grid */
+    .pits-grid {
+      display:grid; grid-template-columns:repeat(6,1fr); gap:6px;
+    }
+    .pits-grid.flipped { direction:rtl; }
+    .pits-grid.flipped .pit { direction:ltr; }
+
+    .pit {
+      aspect-ratio: 1/1; min-height: 52px; border-radius:50%;
+      background:var(--pit); border:2px solid rgba(180,140,60,.2);
+      display:flex; flex-direction:column; align-items:center;
+      justify-content:center; cursor:pointer; position:relative;
+      transition:all .15s; user-select:none; overflow:hidden;
+    }
+    .pit:active { transform:scale(.92); }
+    .pit.valid { border-color:var(--gold); background:rgba(107,58,16,.8); box-shadow:0 0 10px rgba(200,150,42,.3); }
+    .pit.selected { border-color:var(--gold-light); background:rgba(200,150,42,.2); box-shadow:0 0 14px rgba(232,184,74,.5); }
+    .pit.empty { cursor:default; opacity:.5; }
+    .pit.last-pit { border-color:rgba(255,255,255,.3); }
+
+    .pit-count { font-size:1rem; font-weight:700; line-height:1; }
+    .pit-stones {
+      display: grid;
+      gap: 2px;
+      justify-content: center;
+      align-items: center;
+      padding: 6px;
+      width: 100%;
+      height: 100%;
+    }
+    .stone {
+      width: 7px; height: 7px; border-radius: 50%;
+      box-shadow: 0 1px 2px rgba(0,0,0,.4);
+      flex-shrink: 0;
+    }
+    .stone.s1 { background: #c8b87a; }
+    .stone.s2 { background: #7ab8c8; }
+    .stone.s3 { background: #c87a7a; }
+    .stone.s4 { background: #7ac87a; }
+
+    /* Controls */
+    .ctrl-row { display:flex; gap:8px; margin-bottom:10px; }
+    .ctrl-btn { flex:1; height:38px; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:var(--muted); font:inherit; font-size:.8rem; cursor:pointer; }
+    .ctrl-btn:active { transform:scale(.97); }
+    .ctrl-btn.danger { color:#f87171; border-color:rgba(248,113,113,.2); }
+
+    .message { text-align:center; font-size:.88rem; color:var(--muted); min-height:1.4em; margin-bottom:8px; }
+    .message.win { color:var(--gold-light); font-weight:700; font-size:1rem; }
+
+    /* Win overlay */
+    .win-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.75); backdrop-filter:blur(6px); align-items:center; justify-content:center; z-index:100; flex-direction:column; gap:14px; text-align:center; padding:20px; }
+    .win-overlay.show { display:flex; }
+    .win-title { font-size:clamp(2rem,10vw,3.5rem); font-weight:800; color:var(--gold-light); }
+    .win-sub { color:var(--muted); font-size:.9rem; }
+    .win-btn { height:44px; padding:0 28px; border-radius:12px; border:1px solid var(--gold); background:rgba(200,150,42,.15); color:var(--gold-light); font:inherit; font-size:1rem; font-weight:700; cursor:pointer; }
+
+    details { color:var(--muted); font-size:.82rem; line-height:1.5; margin-top:8px; }
+    details summary { cursor:pointer; color:rgba(200,150,42,.8); }
+    details p { margin-top:6px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Mancala</h1>
+  <div class="sub">Kalah rules · 2 players</div>
+
+  <div class="setup-row">
+    <span class="lbl">Stones per pit:</span>
+    <button class="seg" onclick="setStones(3)">3</button>
+    <button class="seg active" onclick="setStones(4)">4</button>
+    <button class="seg" onclick="setStones(6)">6</button>
+    <button class="seg" style="margin-left:auto" onclick="newGame()">New game</button>
+  </div>
+
+  <div class="scores" id="scores"></div>
+
+  <div class="turn-bar">
+    <div class="turn-dot" id="turn-dot"></div>
+    <div class="turn-name" id="turn-name"></div>
+    <div class="turn-hint" id="turn-hint"></div>
+  </div>
+
+  <div class="board-outer">
+    <div class="player-label" id="p2-label" style="color:var(--p2)">South · ←</div>
+    <div class="board-row main">
+      <!-- South store (player 2, left side as viewed) -->
+      <div class="store" id="store-1">
+        <div class="store-count" id="store-count-1" style="color:var(--p2)">0</div>
+        <div class="store-label">Store</div>
+      </div>
+      <!-- Pits -->
+      <div>
+        <!-- North pits (player 1, top row, rendered right-to-left) -->
+        <div class="pits-grid flipped" id="pits-top" style="margin-bottom:6px"></div>
+        <!-- South pits (player 2, bottom row, left-to-right) -->
+        <div class="pits-grid" id="pits-bottom"></div>
+      </div>
+      <!-- North store (player 1, right side) -->
+      <div class="store" id="store-0">
+        <div class="store-count" id="store-count-0" style="color:var(--p1)">0</div>
+        <div class="store-label">Store</div>
+      </div>
+    </div>
+    <div class="player-label" id="p1-label" style="color:var(--p1); margin-top:8px; margin-bottom:0">North · →</div>
+  </div>
+
+  <div class="message" id="message"></div>
+
+  <div class="ctrl-row">
+    <button class="ctrl-btn" onclick="undoMove()">↩ Undo</button>
+    <button class="ctrl-btn danger" onclick="newGame()">↺ New game</button>
+  </div>
+
+  <details>
+    <summary>Rules — Kalah</summary>
+    <p><strong>Setup:</strong> Each player owns the 6 pits on their side and the store to their right. Stones start in each pit.</p>
+    <p><strong>Move:</strong> Pick any of your pits with stones. Distribute stones one-by-one counter-clockwise, dropping one in each pit and your own store — skip the opponent's store.</p>
+    <p><strong>Extra turn:</strong> If your last stone lands in your store, take another turn.</p>
+    <p><strong>Capture:</strong> If your last stone lands in an empty pit on your side, capture it and all stones in the opposite pit — all go to your store.</p>
+    <p><strong>End:</strong> When one player's pits are all empty, the other player captures all remaining stones on their side. Most stones in store wins.</p>
+  </details>
+</main>
+
+<div class="win-overlay" id="win-overlay">
+  <div class="win-title" id="win-title"></div>
+  <div class="win-sub" id="win-sub"></div>
+  <button class="win-btn" onclick="newGame()">Play again</button>
+</div>
+
+<script>
+(()=>{
+"use strict";
+
+// ── Constants ──────────────────────────────────────────────────────────────
+// Board layout (14 indices):
+// 0-5:  Player 1 (North) pits, left→right from their perspective
+// 6:    Player 1 store
+// 7-12: Player 2 (South) pits, left→right from their perspective
+// 13:   Player 2 store
+// Counter-clockwise order: 0→1→2→3→4→5→6→7→8→9→10→11→12→13→0...
+
+const P1_PITS   = [0,1,2,3,4,5];
+const P1_STORE  = 6;
+const P2_PITS   = [7,8,9,10,11,12];
+const P2_STORE  = 13;
+const COLORS    = ['#e84c4c','#4c9ee8'];
+const NAMES     = ['North','South'];
+
+// Opposite pit mapping for captures
+const OPPOSITE  = {0:12, 1:11, 2:10, 3:9, 4:8, 5:7, 7:5, 8:4, 9:3, 10:2, 11:1, 12:0};
+
+let stonesPerPit = 4;
+let pits, turn, history, gameOver, selected, lastPit;
+
+// ── Game logic ─────────────────────────────────────────────────────────────
+window.setStones = function(n) {
+  stonesPerPit = n;
+  document.querySelectorAll('.seg').forEach((b,i) => b.classList.toggle('active', [3,4,6][i]===n));
+  newGame();
+};
+
+window.newGame = function() {
+  pits     = new Array(14).fill(0);
+  P1_PITS.forEach(i => pits[i] = stonesPerPit);
+  P2_PITS.forEach(i => pits[i] = stonesPerPit);
+  turn     = 0; // 0=P1, 1=P2
+  history  = [];
+  gameOver = false;
+  selected = -1;
+  lastPit  = -1;
+  document.getElementById('win-overlay').classList.remove('show');
+  setMsg('');
+  renderAll();
+};
+
+function saveHistory() {
+  history.push({ pits: pits.slice(), turn, selected, lastPit });
+}
+
+window.undoMove = function() {
+  if (!history.length) return setMsg('Nothing to undo.');
+  const s = history.pop();
+  pits = s.pits; turn = s.turn; selected = s.selected; lastPit = s.lastPit;
+  gameOver = false;
+  document.getElementById('win-overlay').classList.remove('show');
+  setMsg('');
+  renderAll();
+};
+
+function playerPits(p) { return p === 0 ? P1_PITS : P2_PITS; }
+function playerStore(p){ return p === 0 ? P1_STORE : P2_STORE; }
+function opponentStore(p){ return p === 0 ? P2_STORE : P1_STORE; }
+
+function validMoves(p) {
+  return playerPits(p).filter(i => pits[i] > 0);
+}
+
+function doMove(pitIdx) {
+  if (gameOver) return;
+  const myPits = playerPits(turn);
+  if (!myPits.includes(pitIdx) || pits[pitIdx] === 0) return;
+
+  saveHistory();
+
+  let stones = pits[pitIdx];
+  pits[pitIdx] = 0;
+  let idx = pitIdx;
+  lastPit = -1;
+
+  while (stones > 0) {
+    idx = (idx + 1) % 14;
+    // Skip opponent's store
+    if (idx === opponentStore(turn)) continue;
+    pits[idx]++;
+    stones--;
+    lastPit = idx;
+  }
+
+  // Extra turn: last stone in own store
+  if (lastPit === playerStore(turn)) {
+    selected = -1;
+    // Check end condition
+    if (checkEnd()) return;
+    setMsg(`${NAMES[turn]} gets another turn!`);
+    renderAll();
+    return;
+  }
+
+  // Capture: last stone lands in empty pit on own side
+  const myPitSet = new Set(myPits);
+  if (myPitSet.has(lastPit) && pits[lastPit] === 1 && pits[OPPOSITE[lastPit]] > 0) {
+    const captured = pits[OPPOSITE[lastPit]];
+    pits[playerStore(turn)] += captured + 1;
+    pits[lastPit] = 0;
+    pits[OPPOSITE[lastPit]] = 0;
+    setMsg(`${NAMES[turn]} captured ${captured + 1} stones!`);
+  } else {
+    setMsg('');
+  }
+
+  if (checkEnd()) return;
+
+  // Switch turn
+  turn = 1 - turn;
+  selected = -1;
+
+  // Check if new player has moves
+  if (validMoves(turn).length === 0) {
+    // Auto-collect remaining stones
+    collectRemaining();
+    endGame();
+    return;
+  }
+
+  renderAll();
+}
+
+function checkEnd() {
+  // If either side is empty, game ends
+  const p1Empty = P1_PITS.every(i => pits[i] === 0);
+  const p2Empty = P2_PITS.every(i => pits[i] === 0);
+  if (p1Empty || p2Empty) {
+    collectRemaining();
+    endGame();
+    return true;
+  }
+  return false;
+}
+
+function collectRemaining() {
+  P1_PITS.forEach(i => { pits[P1_STORE] += pits[i]; pits[i] = 0; });
+  P2_PITS.forEach(i => { pits[P2_STORE] += pits[i]; pits[i] = 0; });
+}
+
+function endGame() {
+  gameOver = true;
+  const s1 = pits[P1_STORE], s2 = pits[P2_STORE];
+  let title, sub;
+  if (s1 > s2) { title = `${NAMES[0]} wins!`; sub = `${s1} – ${s2}`; }
+  else if (s2 > s1) { title = `${NAMES[1]} wins!`; sub = `${s2} – ${s1}`; }
+  else { title = "It's a draw!"; sub = `${s1} – ${s2}`; }
+  document.getElementById('win-title').textContent = title;
+  document.getElementById('win-title').style.color = s1>s2 ? COLORS[0] : s2>s1 ? COLORS[1] : 'var(--gold-light)';
+  document.getElementById('win-sub').textContent = sub;
+  document.getElementById('win-overlay').classList.add('show');
+  renderAll();
+}
+
+// ── Rendering ──────────────────────────────────────────────────────────────
+function renderAll() {
+  renderScores();
+  renderTurnBar();
+  renderBoard();
+}
+
+function renderScores() {
+  const el = document.getElementById('scores');
+  el.innerHTML = [0,1].map(p => `
+    <div class="score-card ${p===turn&&!gameOver?'active-s':''}">
+      <div class="score-name" style="color:${COLORS[p]}">${NAMES[p]}</div>
+      <div class="score-val" style="color:${COLORS[p]}">${pits[playerStore(p)]}</div>
+    </div>`).join('');
+}
+
+function renderTurnBar() {
+  if (gameOver) { document.getElementById('turn-hint').textContent = 'Game over'; return; }
+  document.getElementById('turn-dot').style.background = COLORS[turn];
+  document.getElementById('turn-name').textContent = NAMES[turn] + "'s turn";
+  document.getElementById('turn-name').style.color = COLORS[turn];
+  document.getElementById('turn-hint').textContent = selected >= 0 ? 'Tap selected pit to confirm' : 'Tap a pit to move';
+}
+
+function renderBoard() {
+  // Store counts
+  document.getElementById('store-count-0').textContent = pits[P1_STORE];
+  document.getElementById('store-count-1').textContent = pits[P2_STORE];
+
+  const valid = new Set(gameOver ? [] : validMoves(turn));
+
+  // P1 pits: top row, displayed right-to-left (pit 5 on left, pit 0 on right from North's view)
+  // But on screen top row shows opponent's pits — P1 sits at top
+  // Top row = P1 pits, rendered RTL so pit 0 is on the right (near P1 store)
+  renderPitRow('pits-top', P1_PITS, valid, 0);
+  // Bottom row = P2 pits, LTR so pit 7 is on the left (near P2 store)
+  renderPitRow('pits-bottom', P2_PITS, valid, 1);
+}
+
+function renderPitRow(elId, pitIndices, validSet, player) {
+  const el = document.getElementById(elId);
+  el.innerHTML = '';
+  pitIndices.forEach(i => {
+    const count = pits[i];
+    const isValid = validSet.has(i) && turn === player;
+    const isSel   = selected === i;
+    const isEmpty = count === 0;
+
+    const div = document.createElement('div');
+    div.className = 'pit' + (isSel ? ' selected' : isValid ? ' valid' : isEmpty ? ' empty' : '') + (i === lastPit ? ' last-pit' : '');
+
+    // Show stones visually if ≤ 24, else just number
+    if (count > 0 && count <= 24) {
+      const cols = count <= 4 ? 2 : count <= 9 ? 3 : 4;
+      const stoneSize = cols <= 2 ? 9 : cols === 3 ? 7 : 6;
+      const wrap = document.createElement('div');
+      wrap.className = 'pit-stones';
+      wrap.style.gridTemplateColumns = `repeat(${cols}, ${stoneSize}px)`;
+      wrap.style.gap = '2px';
+      for (let s = 0; s < count; s++) {
+        const stone = document.createElement('div');
+        stone.className = 'stone s' + ((s % 4) + 1);
+        stone.style.width = stoneSize + 'px';
+        stone.style.height = stoneSize + 'px';
+        wrap.appendChild(stone);
+      }
+      div.appendChild(wrap);
+    } else if (count > 0) {
+      const num = document.createElement('div');
+      num.className = 'pit-count';
+      num.textContent = count;
+      div.appendChild(num);
+    }
+
+    div.addEventListener('pointerup', () => {
+      if (gameOver || turn !== player) return;
+      if (!validSet.has(i)) { setMsg('No stones in that pit.'); return; }
+      selected = i;
+      renderBoard();
+      renderTurnBar();
+      // Small delay so user sees selection, then move
+      setTimeout(() => { doMove(i); selected = -1; }, 180);
+    });
+
+    el.appendChild(div);
+  });
+}
+
+function setMsg(t) { document.getElementById('message').textContent = t; }
+
+window.addEventListener('resize', renderBoard);
+newGame();
+})();
+</script>
+</body>
+</html>
