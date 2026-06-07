@@ -44,22 +44,22 @@
     .score-name { font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
     .score-val { font-size:1.8rem; font-weight:800; line-height:1.1; }
 
-    /* Board — horizontal, stores at ends */
+    /* Board — vertical stack: West store / pits / East store */
     .board-outer {
       background:var(--board); border-radius:20px;
       padding:12px; margin-bottom:14px;
       box-shadow:0 8px 24px rgba(0,0,0,.4), inset 0 0 20px rgba(0,0,0,.3);
       border:2px solid rgba(180,140,60,.3);
-      display:flex; flex-direction:row; align-items:stretch; gap:8px;
+      display:flex; flex-direction:column; gap:8px;
     }
 
-    /* Stores — tall sidebars */
+    /* Stores — horizontal bars above/below the pit columns */
     .store {
       border-radius:12px;
       background:var(--pit); border:2px solid rgba(180,140,60,.25);
-      display:flex; flex-direction:column; align-items:center;
-      justify-content:space-between; padding:12px 6px;
-      cursor:default; flex-shrink:0; width:52px;
+      display:flex; flex-direction:row; align-items:center;
+      justify-content:space-between; padding:10px 18px;
+      cursor:default;
     }
     .store-count {
       font-size:1.6rem; font-weight:800; line-height:1;
@@ -146,22 +146,26 @@
   </div>
 
   <div class="board-outer">
-    <!-- West store (P1, left) -->
+    <!-- West store (above — stones arrive from top of left column) -->
     <div class="store" id="store-0">
-      <div class="store-label" style="color:var(--p1);font-weight:700">WEST</div>
       <div class="store-count" id="store-count-0" style="color:var(--p1)">0</div>
-      <div class="store-label">store</div>
+      <div>
+        <div class="store-label" style="color:var(--p1);font-weight:700">WEST</div>
+        <div class="store-label">store</div>
+      </div>
     </div>
     <!-- Pit columns -->
     <div class="pits-area">
       <div class="pits-col" id="pits-left"></div>
       <div class="pits-col" id="pits-right"></div>
     </div>
-    <!-- East store (P2, right) -->
+    <!-- East store (below — stones arrive from bottom of right column) -->
     <div class="store" id="store-1">
-      <div class="store-label" style="color:var(--p2);font-weight:700">EAST</div>
+      <div style="text-align:left">
+        <div class="store-label" style="color:var(--p2);font-weight:700">EAST</div>
+        <div class="store-label">store</div>
+      </div>
       <div class="store-count" id="store-count-1" style="color:var(--p2)">0</div>
-      <div class="store-label">store</div>
     </div>
   </div>
 
