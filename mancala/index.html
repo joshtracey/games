@@ -20,29 +20,8 @@
     h1 { margin:0 0 2px; font-size:clamp(1.6rem,7vw,2.2rem); font-weight:800; color:var(--gold-light); }
     .sub { color:var(--muted); font-size:.8rem; margin-bottom:14px; }
 
-    /* Setup */
-    .setup-row { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
-    .lbl { font-size:.8rem; color:var(--muted); }
-    .seg { height:30px; padding:0 12px; border-radius:6px; border:1px solid var(--border); background:var(--surface); color:var(--muted); font:inherit; font-size:.8rem; cursor:pointer; }
-    .seg.active { background:rgba(200,150,42,.2); border-color:var(--gold); color:var(--gold-light); }
-    .seg:active { transform:scale(.96); }
-
-    /* Turn bar */
-    .turn-bar {
-      display:flex; align-items:center; gap:10px;
-      background:var(--panel); border:1px solid var(--border);
-      border-radius:10px; padding:10px 14px; margin-bottom:14px;
-    }
-    .turn-dot { width:14px; height:14px; border-radius:50%; flex-shrink:0; }
-    .turn-name { font-size:1rem; font-weight:600; flex:1; }
-    .turn-hint { font-size:.75rem; color:var(--muted); }
-
-    /* Scores */
-    .scores { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
-    .score-card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px 14px; }
-    .score-card.active-s { border-color:rgba(200,150,42,.5); }
-    .score-name { font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
-    .score-val { font-size:1.8rem; font-weight:800; line-height:1.1; }
+    /* Active store highlight (current player's turn) */
+    .store.active-store { border-color:var(--gold); box-shadow:0 0 10px rgba(200,150,42,.3); }
 
     /* Board — vertical stack: West store / pits / East store */
     .board-outer {
@@ -128,22 +107,6 @@
 <main>
   <h1>Mancala</h1>
   <div class="sub">Kalah rules · 2 players</div>
-
-  <div class="setup-row">
-    <span class="lbl">Stones per pit:</span>
-    <button class="seg" onclick="setStones(3)">3</button>
-    <button class="seg active" onclick="setStones(4)">4</button>
-    <button class="seg" onclick="setStones(6)">6</button>
-    <button class="seg" style="margin-left:auto" onclick="newGame()">New game</button>
-  </div>
-
-  <div class="scores" id="scores"></div>
-
-  <div class="turn-bar">
-    <div class="turn-dot" id="turn-dot"></div>
-    <div class="turn-name" id="turn-name"></div>
-    <div class="turn-hint" id="turn-hint"></div>
-  </div>
 
   <div class="board-outer">
     <!-- West store (above — stones arrive from top of left column) -->
@@ -352,33 +315,14 @@ function endGame() {
 }
 
 // ── Rendering ──────────────────────────────────────────────────────────────
-function renderAll() {
-  renderScores();
-  renderTurnBar();
-  renderBoard();
-}
-
-function renderScores() {
-  const el = document.getElementById('scores');
-  el.innerHTML = [0,1].map(p => `
-    <div class="score-card ${p===turn&&!gameOver?'active-s':''}">
-      <div class="score-name" style="color:${COLORS[p]}">${NAMES[p]}</div>
-      <div class="score-val" style="color:${COLORS[p]}">${pits[playerStore(p)]}</div>
-    </div>`).join('');
-}
-
-function renderTurnBar() {
-  if (gameOver) { document.getElementById('turn-hint').textContent = 'Game over'; return; }
-  document.getElementById('turn-dot').style.background = COLORS[turn];
-  document.getElementById('turn-name').textContent = NAMES[turn] + "'s turn";
-  document.getElementById('turn-name').style.color = COLORS[turn];
-  document.getElementById('turn-hint').textContent = selected >= 0 ? 'Tap selected pit to confirm' : 'Tap a pit to move';
-}
+function renderAll() { renderBoard(); }
 
 function renderBoard() {
-  // Store counts
+  // Store counts + active highlight
   document.getElementById('store-count-0').textContent = pits[P1_STORE];
   document.getElementById('store-count-1').textContent = pits[P2_STORE];
+  document.getElementById('store-0').classList.toggle('active-store', !gameOver && turn === 0);
+  document.getElementById('store-1').classList.toggle('active-store', !gameOver && turn === 1);
 
   const valid = new Set(gameOver ? [] : validMoves(turn));
 
@@ -428,7 +372,6 @@ function renderPitRow(elId, pitIndices, validSet, player) {
       if (!validSet.has(i)) { setMsg('No stones in that pit.'); return; }
       selected = i;
       renderBoard();
-      renderTurnBar();
       // Small delay so user sees selection, then move
       setTimeout(() => { doMove(i); selected = -1; }, 180);
     });
