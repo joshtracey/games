@@ -44,37 +44,34 @@
     .score-name { font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
     .score-val { font-size:1.8rem; font-weight:800; line-height:1.1; }
 
-    /* Board */
+    /* Board — horizontal, stores at ends */
     .board-outer {
       background:var(--board); border-radius:20px;
       padding:12px; margin-bottom:14px;
       box-shadow:0 8px 24px rgba(0,0,0,.4), inset 0 0 20px rgba(0,0,0,.3);
       border:2px solid rgba(180,140,60,.3);
-      display:flex; flex-direction:column; gap:8px;
+      display:flex; flex-direction:row; align-items:stretch; gap:8px;
     }
 
-    /* Stores — horizontal bars */
+    /* Stores — tall sidebars */
     .store {
       border-radius:12px;
       background:var(--pit); border:2px solid rgba(180,140,60,.25);
-      display:flex; flex-direction:row; align-items:center;
-      justify-content:space-between; padding:10px 18px;
-      cursor:default;
+      display:flex; flex-direction:column; align-items:center;
+      justify-content:space-between; padding:12px 6px;
+      cursor:default; flex-shrink:0; width:52px;
     }
     .store-count {
       font-size:1.6rem; font-weight:800; line-height:1;
     }
     .store-label { font-size:.55rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
 
-    /* Pits grid */
-    .pits-grid {
-      display:grid; grid-template-columns:repeat(6,1fr); gap:6px;
-    }
-    .pits-grid.flipped { direction:rtl; }
-    .pits-grid.flipped .pit { direction:ltr; }
+    /* Pit columns */
+    .pits-area { display:flex; flex:1; gap:6px; }
+    .pits-col  { display:flex; flex-direction:column; flex:1; gap:6px; }
 
     .pit {
-      aspect-ratio: 1/1; min-height: 52px; border-radius:50%;
+      flex:1; min-height:44px; border-radius:12px;
       background:var(--pit); border:2px solid rgba(180,140,60,.2);
       display:flex; flex-direction:column; align-items:center;
       justify-content:center; cursor:pointer; position:relative;
@@ -149,25 +146,22 @@
   </div>
 
   <div class="board-outer">
-    <!-- North store (top bar) -->
+    <!-- West store (P1, left) -->
     <div class="store" id="store-0">
-      <div>
-        <div class="store-label" style="color:var(--p1);font-weight:700">NORTH</div>
-        <div class="store-label">store</div>
-      </div>
+      <div class="store-label" style="color:var(--p1);font-weight:700">WEST</div>
       <div class="store-count" id="store-count-0" style="color:var(--p1)">0</div>
+      <div class="store-label">store</div>
     </div>
-    <!-- North pits (top row) -->
-    <div class="pits-grid flipped" id="pits-top"></div>
-    <!-- South pits (bottom row) -->
-    <div class="pits-grid" id="pits-bottom"></div>
-    <!-- South store (bottom bar) -->
+    <!-- Pit columns -->
+    <div class="pits-area">
+      <div class="pits-col" id="pits-left"></div>
+      <div class="pits-col" id="pits-right"></div>
+    </div>
+    <!-- East store (P2, right) -->
     <div class="store" id="store-1">
+      <div class="store-label" style="color:var(--p2);font-weight:700">EAST</div>
       <div class="store-count" id="store-count-1" style="color:var(--p2)">0</div>
-      <div style="text-align:right">
-        <div class="store-label" style="color:var(--p2);font-weight:700">SOUTH</div>
-        <div class="store-label">store</div>
-      </div>
+      <div class="store-label">store</div>
     </div>
   </div>
 
@@ -180,7 +174,7 @@
 
   <details>
     <summary>Rules — Kalah</summary>
-    <p><strong>Setup:</strong> Each player owns the 6 pits on their side and the store to their right. Stones start in each pit.</p>
+    <p><strong>Setup:</strong> West owns the left column of pits and the West store. East owns the right column and the East store. Stones start in each pit.</p>
     <p><strong>Move:</strong> Pick any of your pits with stones. Distribute stones one-by-one counter-clockwise, dropping one in each pit and your own store — skip the opponent's store.</p>
     <p><strong>Extra turn:</strong> If your last stone lands in your store, take another turn.</p>
     <p><strong>Capture:</strong> If your last stone lands in an empty pit on your side, capture it and all stones in the opposite pit — all go to your store.</p>
@@ -211,7 +205,7 @@ const P1_STORE  = 6;
 const P2_PITS   = [7,8,9,10,11,12];
 const P2_STORE  = 13;
 const COLORS    = ['#e84c4c','#4c9ee8'];
-const NAMES     = ['North','South'];
+const NAMES     = ['West','East'];
 
 // Opposite pit mapping for captures
 const OPPOSITE  = {0:12, 1:11, 2:10, 3:9, 4:8, 5:7, 7:5, 8:4, 9:3, 10:2, 11:1, 12:0};
@@ -384,12 +378,10 @@ function renderBoard() {
 
   const valid = new Set(gameOver ? [] : validMoves(turn));
 
-  // P1 pits: top row, displayed right-to-left (pit 5 on left, pit 0 on right from North's view)
-  // But on screen top row shows opponent's pits — P1 sits at top
-  // Top row = P1 pits, rendered RTL so pit 0 is on the right (near P1 store)
-  renderPitRow('pits-top', P1_PITS, valid, 0);
-  // Bottom row = P2 pits, LTR so pit 7 is on the left (near P2 store)
-  renderPitRow('pits-bottom', P2_PITS, valid, 1);
+  // West (P1) pits: left column, pit 5 at top → pit 0 at bottom (CCW flows up into West store)
+  renderPitRow('pits-left', [...P1_PITS].reverse(), valid, 0);
+  // East (P2) pits: right column, pit 7 at top → pit 12 at bottom (CCW flows down into East store)
+  renderPitRow('pits-right', P2_PITS, valid, 1);
 }
 
 function renderPitRow(elId, pitIndices, validSet, player) {
