@@ -50,27 +50,16 @@
       padding:12px; margin-bottom:14px;
       box-shadow:0 8px 24px rgba(0,0,0,.4), inset 0 0 20px rgba(0,0,0,.3);
       border:2px solid rgba(180,140,60,.3);
+      display:flex; flex-direction:column; gap:8px;
     }
 
-    /* Player 2 label (top) */
-    .player-label {
-      text-align:center; font-size:.7rem; letter-spacing:.1em;
-      text-transform:uppercase; margin-bottom:8px; font-weight:600;
-    }
-
-    /* Main board layout: store | pits | store */
-    .board-row {
-      display:grid; gap:6px; align-items:center;
-    }
-    .board-row.main { grid-template-columns:auto 1fr auto; }
-
-    /* Stores */
+    /* Stores — horizontal bars */
     .store {
-      width:52px; min-height:130px; border-radius:26px;
+      border-radius:12px;
       background:var(--pit); border:2px solid rgba(180,140,60,.25);
-      display:flex; flex-direction:column; align-items:center;
-      justify-content:center; gap:4px; padding:8px 4px;
-      position:relative; cursor:default;
+      display:flex; flex-direction:row; align-items:center;
+      justify-content:space-between; padding:10px 18px;
+      cursor:default;
     }
     .store-count {
       font-size:1.6rem; font-weight:800; line-height:1;
@@ -160,29 +149,26 @@
   </div>
 
   <div class="board-outer">
-    <div class="player-label" id="p2-label" style="color:var(--p2)">South plays this row →</div>
-    <div class="board-row main">
-      <!-- North store (player 1, LEFT side) -->
-      <div class="store" id="store-0">
-        <div class="store-label" style="color:var(--p1);font-size:.6rem;font-weight:700;letter-spacing:.06em">NORTH</div>
-        <div class="store-count" id="store-count-0" style="color:var(--p1)">0</div>
+    <!-- North store (top bar) -->
+    <div class="store" id="store-0">
+      <div>
+        <div class="store-label" style="color:var(--p1);font-weight:700">NORTH</div>
         <div class="store-label">store</div>
       </div>
-      <!-- Pits -->
-      <div>
-        <!-- North pits (player 1, top row) -->
-        <div class="pits-grid flipped" id="pits-top" style="margin-bottom:6px"></div>
-        <!-- South pits (player 2, bottom row) -->
-        <div class="pits-grid" id="pits-bottom"></div>
-      </div>
-      <!-- South store (player 2, RIGHT side) -->
-      <div class="store" id="store-1">
-        <div class="store-label" style="color:var(--p2);font-size:.6rem;font-weight:700;letter-spacing:.06em">SOUTH</div>
-        <div class="store-count" id="store-count-1" style="color:var(--p2)">0</div>
+      <div class="store-count" id="store-count-0" style="color:var(--p1)">0</div>
+    </div>
+    <!-- North pits (top row) -->
+    <div class="pits-grid flipped" id="pits-top"></div>
+    <!-- South pits (bottom row) -->
+    <div class="pits-grid" id="pits-bottom"></div>
+    <!-- South store (bottom bar) -->
+    <div class="store" id="store-1">
+      <div class="store-count" id="store-count-1" style="color:var(--p2)">0</div>
+      <div style="text-align:right">
+        <div class="store-label" style="color:var(--p2);font-weight:700">SOUTH</div>
         <div class="store-label">store</div>
       </div>
     </div>
-    <div class="player-label" id="p1-label" style="color:var(--p1); margin-top:8px; margin-bottom:0">← North plays this row</div>
   </div>
 
   <div class="message" id="message"></div>
