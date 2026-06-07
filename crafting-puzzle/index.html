@@ -733,5 +733,18 @@ function setMsg(t, cls) {
 newGame();
 })();
 </script>
+
+<!-- Back to menu -->
+<div style="text-align:center;padding:16px 0 4px">
+  <button onclick="document.getElementById('menu-overlay').style.display='flex'" style="background:transparent;border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.4);border-radius:8px;padding:8px 20px;font:inherit;font-size:.8rem;cursor:pointer;letter-spacing:.05em">← Menu</button>
+</div>
+<div id="menu-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:14px;text-align:center;padding:24px">
+  <div style="font-size:1.1rem;font-weight:700;color:#f0e0c0">Exit game?</div>
+  <div style="font-size:.85rem;color:#888;max-width:240px">Your progress will be lost.</div>
+  <div style="display:flex;gap:10px;margin-top:4px">
+    <button onclick="document.getElementById('menu-overlay').style.display='none'" style="height:40px;padding:0 20px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.6);font:inherit;font-size:.9rem;cursor:pointer">Stay</button>
+    <button onclick="location.href='../'" style="height:40px;padding:0 20px;border-radius:10px;border:1px solid rgba(220,80,80,.5);background:rgba(220,80,80,.15);color:#f87171;font:inherit;font-size:.9rem;cursor:pointer">Exit to Menu</button>
+  </div>
+</div>
 </body>
 </html>
