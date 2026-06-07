@@ -387,11 +387,17 @@ window.rollDice = function() {
 
 window.rerollDice = function() {
   if (rollsLeft <= 0) return;
-  for (let i = 0; i < 6; i++) if (!kept[i]) dice[i] = Math.floor(Math.random() * 6);
+  // Remove contributions from dice being rerolled (preserves resources already spent)
+  for (let i = 0; i < 6; i++) {
+    if (!kept[i]) hand[RES[dice[i]]] = Math.max(0, (hand[RES[dice[i]]] || 0) - 1);
+  }
+  // Roll new values and add their contributions
+  for (let i = 0; i < 6; i++) {
+    if (!kept[i]) { dice[i] = Math.floor(Math.random() * 6); hand[RES[dice[i]]]++; }
+  }
   rollsLeft--;
   document.getElementById('reroll-btn').disabled = true;
   document.getElementById('reroll-btn').textContent = 'Reroll used';
-  updateHand();
   renderDice();
   renderResources();
   renderBuild();
@@ -446,6 +452,9 @@ window.build = function build(structId) {
   if (structId === 'city' && p.built.settlement === 0) {
     return setMsg('Need a settlement to upgrade to a city.');
   }
+  if (structId === 'devcard' && devDeck.length === 0) {
+    return setMsg('Dev card deck is empty.');
+  }
   if (!canAfford(s.cost)) return setMsg('Not enough resources.');
 
   spend(s.cost);
@@ -454,7 +463,6 @@ window.build = function build(structId) {
     p.built.city++;
     p.built.settlement = Math.max(0, p.built.settlement - 1);
   } else if (structId === 'devcard') {
-    if (devDeck.length === 0) return setMsg('Dev card deck is empty.');
     const card = devDeck.pop();
     applyDevCard(card, p);
   } else {
