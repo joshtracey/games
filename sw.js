@@ -4,7 +4,7 @@
 // Phones re-fetch this file whenever the app is opened online; a changed
 // version triggers a background download of everything in PRECACHE, and the
 // menu page shows an "Update ready" banner to switch over.
-const CACHE = 'games-v3';
+const CACHE = 'games-v4';
 
 const PRECACHE = [
   './',
@@ -34,7 +34,16 @@ const PRECACHE = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)));
+  // Fetch every page fresh from the network: a version-stamped query plus
+  // no-store bypasses the browser's HTTP cache, which could otherwise serve
+  // stale copies (GitHub Pages uses max-age=600) into the new app cache.
+  e.waitUntil(caches.open(CACHE).then((c) =>
+    Promise.all(PRECACHE.map(async (u) => {
+      const resp = await fetch(u + '?swv=' + encodeURIComponent(CACHE), { cache: 'no-store' });
+      if (!resp.ok) throw new Error('precache failed: ' + u);
+      await c.put(u, resp); // stored under the clean URL; match uses ignoreSearch
+    }))
+  ));
 });
 
 self.addEventListener('activate', (e) => {
