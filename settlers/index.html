@@ -263,8 +263,8 @@ const DEV_CARDS = [
   { name:'Victory Point', effect:'vp', desc:'+1 VP (secret until end)' },
   { name:'Road Building', effect:'road2', desc:'Build 2 roads free' },
   { name:'Road Building', effect:'road2', desc:'Build 2 roads free' },
-  { name:'Year of Plenty', effect:'yop', desc:'Gain any 2 resources' },
-  { name:'Year of Plenty', effect:'yop', desc:'Gain any 2 resources' },
+  { name:'Year of Plenty', effect:'yop', desc:'Gain 2 of a random resource' },
+  { name:'Year of Plenty', effect:'yop', desc:'Gain 2 of a random resource' },
   { name:'Monopoly', effect:'mono', desc:'Gain 1 of every resource' },
   { name:'Monopoly', effect:'mono', desc:'Gain 1 of every resource' },
 ];
@@ -274,7 +274,7 @@ const DEFAULT_NAMES = ['Red','Blue','Yellow','Green'];
 
 // ── State ──────────────────────────────────────────────────────────────────
 let setupPC = 1, winVP = 10;
-let players, turn, gameOver, devDeck;
+let players, turn, turnCount, gameOver, devDeck;
 
 function playerVP(p) {
   let vp = 0;
@@ -338,6 +338,7 @@ window.startGame = function() {
   }
   devDeck = shuffle(DEV_CARDS.slice());
   turn = 0;
+  turnCount = 0;
   gameOver = false;
   document.getElementById('setup-panel').style.display = 'none';
   document.getElementById('game-panel').style.display = 'block';
@@ -480,7 +481,7 @@ window.build = function build(structId) {
     return;
   }
 
-  setMsg(`Built ${s.name}!${structId==='devcard' ? ' Drew a card.' : ''}`);
+  if (structId !== 'devcard') setMsg(`Built ${s.name}!`); // dev cards set their own message
   renderResources();
   renderBuild();
   renderScores();
@@ -510,18 +511,22 @@ function applyDevCard(card, p) {
 }
 
 function checkLongestRoad() {
-  // Longest road: player with most roads ≥5 gets +2 VP
-  let maxRoads = 4, holder = -1;
+  // Longest road: most roads ≥5 gets +2 VP. The current holder keeps it on
+  // ties — a challenger must strictly exceed the holder's count.
+  let holder = players.findIndex(p => p.longestRoad);
+  let best = holder === -1 ? 4 : players[holder].built.road;
   players.forEach((p,i) => {
-    if (p.built.road > maxRoads) { maxRoads = p.built.road; holder = i; }
+    if (p.built.road >= 5 && p.built.road > best) { best = p.built.road; holder = i; }
   });
   players.forEach((p,i) => p.longestRoad = (i === holder));
 }
 
 function checkLargestArmy() {
-  let maxK = 2, holder = -1;
+  // Largest army: most knights ≥3 gets +2 VP; holder keeps it on ties.
+  let holder = players.findIndex(p => p.largestArmy);
+  let best = holder === -1 ? 2 : players[holder].knights;
   players.forEach((p,i) => {
-    if (p.knights > maxK) { maxK = p.knights; holder = i; }
+    if (p.knights >= 3 && p.knights > best) { best = p.knights; holder = i; }
   });
   players.forEach((p,i) => p.largestArmy = (i === holder));
 }
@@ -533,6 +538,7 @@ window.endTurnManual = function() {
 
 function advanceTurn() {
   turn = (turn + 1) % players.length;
+  turnCount++;
   startTurn();
 }
 
@@ -551,7 +557,7 @@ function renderTurnBar() {
   document.getElementById('turn-swatch').style.background = p.color;
   document.getElementById('turn-name').textContent = p.name;
   document.getElementById('turn-name').style.color = p.color;
-  document.getElementById('turn-meta').textContent = `${playerVP(p)} VP · Round ${Math.floor(turn/players.length)+1}`;
+  document.getElementById('turn-meta').textContent = `${playerVP(p)} VP · Round ${Math.floor(turnCount/players.length)+1}`;
 }
 
 function renderScores() {

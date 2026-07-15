@@ -53,6 +53,18 @@
     .two { grid-column: span 2; }
 
     .message { min-height: 1.4em; margin-top: 10px; color: var(--muted); font-size: .95rem; }
+    .score-panel { margin-top: 12px; padding: 12px; border-radius: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); font-size: .9rem; line-height: 1.4; }
+    .score-panel h2 { margin: 0 0 8px; font-size: 1rem; }
+    .score-panel ol { margin: 0 0 10px; padding-left: 20px; color: var(--muted); }
+    .score-panel li { margin-bottom: 6px; }
+    .score-panel li strong { color: var(--text); }
+    .score-panel table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    .score-panel th, .score-panel td { padding: 4px 6px; text-align: right; }
+    .score-panel th:first-child, .score-panel td:first-child { text-align: left; color: var(--muted); font-weight: normal; }
+    .score-panel thead th { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; }
+    .score-panel tr.total td { border-top: 1px solid rgba(255,255,255,.2); font-weight: 700; }
+    .score-panel .verdict { color: var(--ok); font-weight: 700; }
+    .score-panel .hint { color: var(--muted); font-size: .82rem; }
     .black, .white { display: inline-flex; align-items: center; gap: 7px; }
     .stone-dot { width: 16px; height: 16px; border-radius: 50%; display: inline-block; border: 1px solid rgba(255,255,255,.4); }
     .black .stone-dot { background: #050505; }
@@ -123,9 +135,11 @@
 
       <div id="message" class="message">Tap an intersection to play. Black starts.</div>
 
+      <div id="scorePanel" class="score-panel" style="display:none"></div>
+
       <details class="rules">
         <summary>Notes</summary>
-        <p>This is a practical pass-and-play board, not a certified referee. It enforces captures, suicide prevention, and simple ko. Scoring is an estimate using area scoring: stones plus fully surrounded empty territory, with komi added to White.</p>
+        <p>This is a practical pass-and-play board, not a certified referee. It enforces captures, suicide prevention, and simple ko. Scoring is an estimate using area scoring: stones plus fully surrounded empty territory, with komi added to White. After both players pass, tap a group to mark it dead (tap again to revive it) — dead stones are removed for scoring and their points count as territory.</p>
       </details>
     </section>
   
@@ -139,6 +153,7 @@
   const turnEl = document.getElementById("turn");
   const capturesEl = document.getElementById("captures");
   const msgEl = document.getElementById("message");
+  const scorePanelEl = document.getElementById("scorePanel");
 
   let N = Number(sizeEl.value);
   let board = emptyBoard(N);
@@ -148,6 +163,7 @@
   let koPoint = null; // position forbidden by ko (two moves ago)
   let passCount = 0;
   let gameOver = false;
+  let deadStones = new Set(); // "x,y" keys marked dead during scoring
 
   function emptyBoard(n) {
     return Array.from({length: n}, () => Array(n).fill(0));
@@ -241,8 +257,9 @@
     turn = turn === 1 ? 2 : 1;
     if (passCount >= 2) {
       gameOver = true;
-      const s = score();
-      setMsg(`Both players passed. Estimated score: Black ${s.black}, White ${s.white}. ${s.winner}`);
+      deadStones.clear();
+      setMsg("Both players passed — the game is over. Let's count! Follow the steps below.");
+      renderScorePanel();
     } else {
       setMsg(`${passer} passed.`);
     }
@@ -258,17 +275,30 @@
     turn = last.turn;
     passCount = last.passCount;
     gameOver = last.gameOver;
+    deadStones.clear();
+    hideScorePanel();
     setMsg("Undid last action.");
     draw();
   }
 
-  function score() {
+  function effectiveBoard() {
+    const b = clone(board);
+    for (const k of deadStones) {
+      const [dx, dy] = k.split(",").map(Number);
+      b[dy][dx] = 0;
+    }
+    return b;
+  }
+
+  function scoreDetail() {
+    const b = effectiveBoard();
+    const owner = emptyBoard(N); // for empty points: 1/2 = territory, 0 = neutral
     const seen = new Set();
-    let black = 0, white = Number(komiEl.value);
+    let blackStones = 0, whiteStones = 0, blackTerr = 0, whiteTerr = 0, dame = 0;
     for (let y = 0; y < N; y++) {
       for (let x = 0; x < N; x++) {
-        if (board[y][x] === 1) black++;
-        else if (board[y][x] === 2) white++;
+        if (b[y][x] === 1) blackStones++;
+        else if (b[y][x] === 2) whiteStones++;
         else {
           const key = `${x},${y}`;
           if (seen.has(key)) continue;
@@ -280,38 +310,96 @@
             const [cx, cy] = stack.pop();
             region.push([cx, cy]);
             for (const [nx, ny] of neighbors(cx, cy)) {
-              if (board[ny][nx] === 0) {
+              if (b[ny][nx] === 0) {
                 const nk = `${nx},${ny}`;
                 if (!seen.has(nk)) { seen.add(nk); stack.push([nx, ny]); }
               } else {
-                borders.add(board[ny][nx]);
+                borders.add(b[ny][nx]);
               }
             }
           }
-          if (borders.size === 1) {
-            if (borders.has(1)) black += region.length;
-            if (borders.has(2)) white += region.length;
-          }
+          const o = borders.size === 1 ? [...borders][0] : 0;
+          for (const [rx, ry] of region) owner[ry][rx] = o;
+          if (o === 1) blackTerr += region.length;
+          else if (o === 2) whiteTerr += region.length;
+          else dame += region.length;
         }
       }
     }
-    black = Math.round(black * 10) / 10;
-    white = Math.round(white * 10) / 10;
-    const winner = black > white ? `Black wins by ${Math.round((black-white)*10)/10}.` : `White wins by ${Math.round((white-black)*10)/10}.`;
-    return {black, white, winner};
+    const komi = Number(komiEl.value);
+    const black = blackStones + blackTerr;
+    const white = Math.round((whiteStones + whiteTerr + komi) * 10) / 10;
+    const winner = black === white ? "Tie game." : black > white ? `Black wins by ${Math.round((black-white)*10)/10}.` : `White wins by ${Math.round((white-black)*10)/10}.`;
+    return {blackStones, whiteStones, blackTerr, whiteTerr, dame, komi, black, white, winner, owner};
+  }
+
+  function score() {
+    const d = scoreDetail();
+    return {black: d.black, white: d.white, winner: d.winner};
+  }
+
+  function inScoringPhase() {
+    return gameOver && passCount >= 2;
+  }
+
+  function renderScorePanel() {
+    const d = scoreDetail();
+    const final = inScoringPhase();
+    const steps = final ? `
+      <ol>
+        <li><strong>Remove dead stones.</strong> Tap any group that could not escape capture if play went on — it fades out and no longer counts. A group survives only if it has two separate enclosed spaces ("eyes"). Not sure whether a group is dead? Undo the passes and play it out instead.</li>
+        <li><strong>Spot the territory.</strong> The small dots now on the board mark empty points fenced in by one colour only — that player's territory. Empty points touching both colours are neutral and score nothing${d.dame ? ` (${d.dame} right now)` : ""}.</li>
+        <li><strong>Add it up.</strong> Each player scores their stones on the board plus their territory. White also gets komi — compensation for Black moving first.</li>
+      </ol>` : `
+      <p class="hint">Mid-game estimate. Territory only counts once an empty area is fenced in by a single colour, so early numbers look small — that's normal.</p>`;
+    scorePanelEl.style.display = "block";
+    scorePanelEl.innerHTML = `
+      <h2>${final ? "Counting the final score" : "Score estimate"}</h2>
+      ${steps}
+      <table>
+        <thead><tr><th></th><th>Black</th><th>White</th></tr></thead>
+        <tbody>
+          <tr><td>Stones on board</td><td>${d.blackStones}</td><td>${d.whiteStones}</td></tr>
+          <tr><td>Territory</td><td>${d.blackTerr}</td><td>${d.whiteTerr}</td></tr>
+          <tr><td>Komi</td><td>—</td><td>${d.komi}</td></tr>
+          <tr class="total"><td>Total</td><td>${d.black}</td><td>${d.white}</td></tr>
+        </tbody>
+      </table>
+      <div class="verdict">${d.winner}</div>`;
+  }
+
+  function hideScorePanel() {
+    scorePanelEl.style.display = "none";
+    scorePanelEl.innerHTML = "";
+  }
+
+  function toggleDead(x, y) {
+    if (board[y][x] === 0) return;
+    const markDead = !deadStones.has(`${x},${y}`);
+    for (const [sx, sy] of groupAt(board, x, y).stones) {
+      const key = `${sx},${sy}`;
+      if (markDead) deadStones.add(key);
+      else deadStones.delete(key);
+    }
+    setMsg(`Group marked ${markDead ? "dead — it now counts as the opponent's territory" : "alive again"}. Score updated below.`);
+    renderScorePanel();
+    draw();
   }
 
   function showScore() {
-    const s = score();
-    setMsg(`Estimated area score: Black ${s.black}, White ${s.white}. ${s.winner}`);
+    renderScorePanel();
+    setMsg(inScoringPhase() ? "Score breakdown is below." : "Estimate shown below. Play on — the real count happens after both players pass.");
+    draw();
   }
 
   function resign() {
     if (gameOver) return;
+    history.push({board: clone(board), koPoint, captures: {...captures}, turn, passCount, gameOver});
     const loser = turn === 1 ? "Black" : "White";
     const winner = turn === 1 ? "White" : "Black";
     gameOver = true;
-    setMsg(`${loser} resigns. ${winner} wins.`);
+    hideScorePanel();
+    setMsg(`${loser} resigns. ${winner} wins — no counting needed.`);
     draw();
   }
 
@@ -324,6 +412,8 @@
     koPoint = null;
     passCount = 0;
     gameOver = false;
+    deadStones.clear();
+    hideScorePanel();
     setMsg("New game. Black starts.");
     draw();
   }
@@ -366,6 +456,7 @@
 
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       if (!board[y][x]) continue;
+      ctx.globalAlpha = deadStones.has(`${x},${y}`) ? 0.4 : 1;
       const cx = pad + x * cell, cy = pad + y * cell, r = cell * .43;
       const grad = ctx.createRadialGradient(cx - r*.35, cy - r*.35, r*.08, cx, cy, r);
       if (board[y][x] === 1) {
@@ -383,9 +474,30 @@
       ctx.lineWidth = 1;
       ctx.stroke();
     }
+    ctx.globalAlpha = 1;
 
-    turnEl.className = turn === 1 ? "black" : "white";
-    turnEl.innerHTML = `<i class="stone-dot"></i> ${turn === 1 ? "Black" : "White"}`;
+    if (inScoringPhase()) {
+      const owner = scoreDetail().owner;
+      const b = effectiveBoard();
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        if (b[y][x] !== 0 || owner[y][x] === 0) continue;
+        ctx.fillStyle = owner[y][x] === 1 ? "#050505" : "#f8fafc";
+        ctx.strokeStyle = "rgba(0,0,0,.35)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(pad + x * cell, pad + y * cell, Math.max(2.5, cell * .14), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    if (gameOver) {
+      turnEl.className = "";
+      turnEl.textContent = "Game over";
+    } else {
+      turnEl.className = turn === 1 ? "black" : "white";
+      turnEl.innerHTML = `<i class="stone-dot"></i> ${turn === 1 ? "Black" : "White"}`;
+    }
     capturesEl.textContent = `Black ${captures[1]} · White ${captures[2]}`;
   }
 
@@ -404,7 +516,9 @@
 
   canvas.addEventListener("pointerup", ev => {
     const p = pointFromEvent(ev);
-    if (p) tryPlay(p.x, p.y);
+    if (!p) return;
+    if (gameOver && passCount >= 2) toggleDead(p.x, p.y);
+    else tryPlay(p.x, p.y);
   });
 
   document.getElementById("pass").addEventListener("click", pass);

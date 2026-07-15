@@ -58,7 +58,7 @@
       <span class="lbl">Mode:</span>
       <button class="seg active" onclick="setMode('solo')">Solo</button>
       <button class="seg" onclick="setMode('race')">Race</button>
-      <span id="pc-wrap" style="display:none;gap:6px;align-items:center;display:none">
+      <span id="pc-wrap" style="display:none;gap:6px;align-items:center">
         <span class="lbl" style="margin-left:8px">Players:</span>
         <button class="seg" onclick="setPC(2)">2</button>
         <button class="seg" onclick="setPC(3)">3</button>
@@ -259,9 +259,6 @@ function insParens(){
 }
 
 // Allow Enter key
-window.addEventListener('DOMContentLoaded',()=>{
-  document.getElementById('expr').addEventListener('keydown',e=>{if(e.key==='Enter')checkAnswer();});
-});
 document.getElementById('expr').addEventListener('keydown',e=>{if(e.key==='Enter')checkAnswer();});
 
 // ── Timer ──────────────────────────────────────────────────────────────────

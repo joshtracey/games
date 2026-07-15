@@ -384,7 +384,7 @@ const PUZZLE_BANK = {
 let gridSize = 3, diff = 'easy';
 let puzzle, items, grid, selectedItem, history;
 let timerSec = 0, timerInt = null, gameOver = false;
-let puzzleIndex = 0;
+let puzzleIndex = -1; // newGame pre-increments, so the first game shows puzzle #1
 
 window.setSize = function(n) {
   gridSize = n;
@@ -418,12 +418,12 @@ window.newGame = function() {
   renderGrid();
   renderTray();
   setMsg('Select an item from the tray, then tap a grid cell to place it.');
-  // Verify uniqueness in background
+  // Verify solvability in background (any clue-satisfying arrangement wins,
+  // so multiple solutions are fine — only an unsolvable puzzle is a problem)
   const itemIds = items.slice(0, gridSize*gridSize).map(x=>x.id);
   setTimeout(()=>{
-    const sols = findSolutions(gridSize, itemIds, puzzle.clueSpecs, 2);
-    if (sols.length > 1) setMsg('⚠️ This puzzle has multiple solutions — clues may need tightening.', 'err');
-    else if (sols.length === 0) setMsg('⚠️ No solution found for this puzzle.', 'err');
+    const sols = findSolutions(gridSize, itemIds, puzzle.clueSpecs, 1);
+    if (sols.length === 0) setMsg('⚠️ No solution found for this puzzle.', 'err');
   }, 50);
 };
 
@@ -521,13 +521,13 @@ function renderTray() {
 function handleCellTap(idx) {
   if (gameOver) return;
   if (selectedItem) {
+    saveHistory();
     // Place item
     if (grid[idx] === selectedItem) { grid[idx] = null; } // toggle off
     else {
       // Remove item from wherever it currently is
       const prev = grid.indexOf(selectedItem);
       if (prev !== -1) grid[prev] = null;
-      saveHistory();
       grid[idx] = selectedItem;
     }
     renderGrid(); renderTray();
@@ -632,27 +632,102 @@ function checkClue(g, size, clue) {
 }
 
 // ── Constraint solver — finds all arrangements satisfying clues (up to limit) ──
-function findSolutions(size, itemIds, clueSpecs, limit=2) {
-  const results = [];
-  const g = new Array(size*size).fill(null);
-  const remaining = itemIds.slice();
+// Prunes as soon as a clue becomes fully decidable (all its items placed) and
+// fails — brute-forcing all 16! permutations of a 4×4 grid would hang the page.
+function clueItemIds(clue, size) {
+  if (clue.type === 'block2x2') {
+    const ids = [];
+    for (let dr = 0; dr < 2; dr++)
+      for (let dc = 0; dc < 2; dc++)
+        ids.push(puzzle.sol[(clue.r+dr)*size+(clue.c+dc)]);
+    return ids;
+  }
+  if (clue.type === 'adjacent') return [clue.a, clue.b];
+  return clue.items;
+}
 
-  function bt(pos) {
-    if (results.length >= limit) return;
-    if (pos === size*size) {
-      if (cluesSatisfied(g, size, clueSpecs)) results.push(g.slice());
-      return;
+// `initial` (optional) is a partial grid whose placements are kept fixed,
+// so hints can respect what the player has already laid out.
+function findSolutions(size, itemIds, clueSpecs, limit=2, initial=null) {
+  const results = [];
+  const g = initial ? initial.slice() : new Array(size*size).fill(null);
+  const placedSet = new Set(g.filter(Boolean));
+  const remaining = itemIds.filter(id => !placedSet.has(id));
+
+  function clueFeasible(clue) {
+    if (clue.type === 'block2x2') {
+      // Any placed block item pins the block's anchor; all must agree,
+      // and already-filled anchor cells must hold the right items.
+      const ids = [];
+      for (let dr=0;dr<2;dr++) for (let dc=0;dc<2;dc++)
+        ids.push({ id: puzzle.sol[(clue.r+dr)*size+(clue.c+dc)], dr, dc });
+      let anchor = null;
+      for (const {id,dr,dc} of ids) {
+        const gi = g.indexOf(id);
+        if (gi === -1) continue;
+        const ar = Math.floor(gi/size)-dr, ac = (gi%size)-dc;
+        if (ar<0 || ar>size-2 || ac<0 || ac>size-2) return false;
+        if (anchor && (anchor[0]!==ar || anchor[1]!==ac)) return false;
+        anchor = [ar,ac];
+      }
+      if (anchor) {
+        for (const {id,dr,dc} of ids) {
+          const cell = g[(anchor[0]+dr)*size + anchor[1]+dc];
+          if (cell !== null && cell !== id) return false;
+        }
+      }
+      return true;
     }
+    if (clue.type === 'row-pair' || clue.type === 'col-pair') {
+      const [a,b] = clue.items;
+      const ia = g.indexOf(a), ib = g.indexOf(b);
+      if (ia !== -1 && ib !== -1) return checkClue(g, size, clue);
+      const placedIdx = ia !== -1 ? ia : ib;
+      if (placedIdx === -1) return true;
+      const isRow = clue.type === 'row-pair';
+      const line = i => isRow ? Math.floor(i/size) : i%size;
+      const missingIsA = ia === -1;
+      for (let i=0;i<size*size;i++) {
+        if (g[i] !== null || line(i) !== line(placedIdx)) continue;
+        if (!clue.ordered) return true;
+        if (missingIsA ? i < placedIdx : i > placedIdx) return true;
+      }
+      return false;
+    }
+    if (clue.type === 'adjacent') {
+      const ia = g.indexOf(clue.a), ib = g.indexOf(clue.b);
+      if (ia !== -1 && ib !== -1) return checkClue(g, size, clue);
+      const placedIdx = ia !== -1 ? ia : ib;
+      if (placedIdx === -1) return true;
+      const r = Math.floor(placedIdx/size), c = placedIdx%size;
+      for (const [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+        const nr=r+dr, nc=c+dc;
+        if (nr>=0&&nr<size&&nc>=0&&nc<size&&g[nr*size+nc]===null) return true;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  function consistent() { return clueSpecs.every(clueFeasible); }
+
+  const openCells = [];
+  for (let i=0;i<size*size;i++) if (g[i]===null) openCells.push(i);
+
+  function bt(k) {
+    if (results.length >= limit) return;
+    if (k === openCells.length) { results.push(g.slice()); return; }
+    const pos = openCells[k];
     for (let i=0; i<remaining.length; i++) {
       g[pos] = remaining[i];
       remaining.splice(i,1);
-      bt(pos+1);
+      if (consistent()) bt(k+1);
       remaining.splice(i,0,g[pos]);
       g[pos] = null;
       if (results.length >= limit) return;
     }
   }
-  bt(0);
+  if (consistent()) bt(0);
   return results;
 }
 
@@ -690,7 +765,13 @@ window.getHint = function() {
   const itemIds = items.slice(0, gridSize*gridSize).map(x=>x.id);
   setMsg('Finding hint…', '');
   setTimeout(() => {
-    const sols = findSolutions(gridSize, itemIds, puzzle.clueSpecs, 1);
+    // Prefer a solution that keeps the player's current placements
+    let note = '';
+    let sols = findSolutions(gridSize, itemIds, puzzle.clueSpecs, 1, grid);
+    if (!sols.length) {
+      sols = findSolutions(gridSize, itemIds, puzzle.clueSpecs, 1);
+      note = 'Your current layout can’t be completed as-is. ';
+    }
     if (!sols.length) { setMsg('No solution found — puzzle may need more clues.', 'err'); return; }
     const sol = sols[0];
     // Find first cell where current grid differs from solution
@@ -699,7 +780,7 @@ window.getHint = function() {
         const el = document.getElementById('main-grid').children[i];
         el.classList.add('hint-highlight');
         const item = items.find(x=>x.id===sol[i]);
-        setMsg(`Hint: cell (row ${Math.floor(i/gridSize)+1}, col ${i%gridSize+1}) should be ${item?.emoji}.`, 'ok');
+        setMsg(`${note}Hint: cell (row ${Math.floor(i/gridSize)+1}, col ${i%gridSize+1}) should be ${item?.emoji}.`, 'ok');
         setTimeout(()=>el.classList.remove('hint-highlight'),2500);
         return;
       }

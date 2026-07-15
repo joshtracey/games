@@ -670,9 +670,9 @@ const SPELL_SLOTS = {
   Druid:     [[2],[3],[4,2],[4,3],[4,3,2],[4,3,3],[4,3,3,1],[4,3,3,2],[4,3,3,3,1],[4,3,3,3,2],[4,3,3,3,2,1],[4,3,3,3,2,1],[4,3,3,3,2,1,1],[4,3,3,3,2,1,1],[4,3,3,3,2,1,1,1],[4,3,3,3,2,1,1,1],[4,3,3,3,2,1,1,1,1],[4,3,3,3,3,1,1,1,1],[4,3,3,3,3,2,1,1,1],[4,3,3,3,3,2,2,1,1]],
   Sorcerer:  [[2],[3],[4,2],[4,3],[4,3,2],[4,3,3],[4,3,3,1],[4,3,3,2],[4,3,3,3,1],[4,3,3,3,2],[4,3,3,3,2,1],[4,3,3,3,2,1],[4,3,3,3,2,1,1],[4,3,3,3,2,1,1],[4,3,3,3,2,1,1,1],[4,3,3,3,2,1,1,1],[4,3,3,3,2,1,1,1,1],[4,3,3,3,3,1,1,1,1],[4,3,3,3,3,2,1,1,1],[4,3,3,3,3,2,2,1,1]],
   Wizard:    [[2],[3],[4,2],[4,3],[4,3,2],[4,3,3],[4,3,3,1],[4,3,3,2],[4,3,3,3,1],[4,3,3,3,2],[4,3,3,3,2,1],[4,3,3,3,2,1],[4,3,3,3,2,1,1],[4,3,3,3,2,1,1],[4,3,3,3,2,1,1,1],[4,3,3,3,2,1,1,1],[4,3,3,3,2,1,1,1,1],[4,3,3,3,3,1,1,1,1],[4,3,3,3,3,2,1,1,1],[4,3,3,3,3,2,2,1,1]],
-  Paladin:   [[null,2],[null,2],[null,3],[null,3],[null,4,2],[null,4,2],[null,4,3],[null,4,3],[null,4,3,2],[null,4,3,2],[null,4,3,3],[null,4,3,3],[null,4,3,3,1],[null,4,3,3,1],[null,4,3,3,2],[null,4,3,3,2],[null,4,3,3,3,1],[null,4,3,3,3,1],[null,4,3,3,3,2],[null,4,3,3,3,2]],
-  Ranger:    [[null,2],[null,2],[null,3],[null,3],[null,4,2],[null,4,2],[null,4,3],[null,4,3],[null,4,3,2],[null,4,3,2],[null,4,3,3],[null,4,3,3],[null,4,3,3,1],[null,4,3,3,1],[null,4,3,3,2],[null,4,3,3,2],[null,4,3,3,3,1],[null,4,3,3,3,1],[null,4,3,3,3,2],[null,4,3,3,3,2]],
-  Warlock:   [[1],[2],[null,null,2],[null,null,2],[null,null,null,2],[null,null,null,2],[null,null,null,null,2],[null,null,null,null,2],[null,null,null,null,2],[null,null,null,null,2],[null,null,null,null,null,3],[null,null,null,null,null,3],[null,null,null,null,null,null,3],[null,null,null,null,null,null,3],[null,null,null,null,null,null,null,3],[null,null,null,null,null,null,null,3],[null,null,null,null,null,null,null,null,4],[null,null,null,null,null,null,null,null,4],[null,null,null,null,null,null,null,null,4],[null,null,null,null,null,null,null,null,4]],
+  Paladin:   [[],[2],[3],[3],[4,2],[4,2],[4,3],[4,3],[4,3,2],[4,3,2],[4,3,3],[4,3,3],[4,3,3,1],[4,3,3,1],[4,3,3,2],[4,3,3,2],[4,3,3,3,1],[4,3,3,3,1],[4,3,3,3,2],[4,3,3,3,2]],
+  Ranger:    [[],[2],[3],[3],[4,2],[4,2],[4,3],[4,3],[4,3,2],[4,3,2],[4,3,3],[4,3,3],[4,3,3,1],[4,3,3,1],[4,3,3,2],[4,3,3,2],[4,3,3,3,1],[4,3,3,3,1],[4,3,3,3,2],[4,3,3,3,2]],
+  Warlock:   [[1],[2],[null,2],[null,2],[null,null,2],[null,null,2],[null,null,null,2],[null,null,null,2],[null,null,null,null,2],[null,null,null,null,2],[null,null,null,null,3],[null,null,null,null,3],[null,null,null,null,3],[null,null,null,null,3],[null,null,null,null,3],[null,null,null,null,3],[null,null,null,null,4],[null,null,null,null,4],[null,null,null,null,4],[null,null,null,null,4]],
   // Non-casters
   Barbarian:null, Fighter:null, Monk:null, Rogue:null,
 };
@@ -1489,7 +1489,11 @@ function buildPrintSheet() {
         <div style="display:flex;gap:4pt;font-size:6.5pt;font-weight:600;color:#8b6914;border-bottom:0.5pt solid #c8a050;padding-bottom:2pt;margin-bottom:3pt">
           <span style="flex:1">Name</span><span style="min-width:30pt">Bonus</span><span style="min-width:40pt">Damage</span>
         </div>
-        ${char.attacks.map(a=>`<div class="ps-atk-row"><span class="ps-atk-name">${a.name||'—'}</span><span class="ps-atk-bonus">${a.bonus||'—'}</span><span class="ps-atk-dmg">${a.dmg||'—'}</span></div>`).join('')}
+        ${char.attacks.map(a=>{
+          const dmgBonus = calcDamageBonus(a);
+          const dmgStr = a.dmg && a.dmg !== '—' ? `${a.dmg}${dmgBonus>=0?'+'+dmgBonus:dmgBonus}` : '—';
+          return `<div class="ps-atk-row"><span class="ps-atk-name">${a.name||'—'}</span><span class="ps-atk-bonus">${modStr2(calcAttackBonus(a))}</span><span class="ps-atk-dmg">${dmgStr}</span></div>`;
+        }).join('')}
         ${!char.attacks.length?'<div style="font-size:7pt;color:#aaa;font-style:italic">None</div>':''}
       </div>
     </div>

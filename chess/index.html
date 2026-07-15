@@ -33,7 +33,12 @@
     .board-wrap { width: 100%; aspect-ratio: 1/1; position: relative; border-radius: 4px; overflow: hidden; touch-action: manipulation; user-select: none; }
     canvas { display: block; width: 100%; height: 100%; cursor: pointer; position: absolute; top:0; left:0; }
     #piece-layer { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
-    #piece-layer img { position: absolute; pointer-events: none; }
+    #piece-layer span {
+      position: absolute; pointer-events: none; text-align: center;
+      font-family: "Apple Symbols", "Segoe UI Symbol", "Noto Sans Symbols 2", "DejaVu Sans", sans-serif;
+    }
+    .piece-w { color: #fafafa; text-shadow: 0 0 2px #000, 0 2px 2px rgba(0,0,0,.45); }
+    .piece-b { color: #161616; text-shadow: 0 0 2px rgba(255,255,255,.55), 0 2px 2px rgba(0,0,0,.35); }
     .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
     button { border: 0; border-radius: 12px; min-height: 44px; padding: 10px 12px; font: inherit; color: var(--text); background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.12); cursor: pointer; }
     button:active { transform: translateY(1px); }
@@ -77,10 +82,10 @@
         <div class="promo-box">
           <p>Promote pawn to:</p>
           <div class="promo-btns">
-            <button id="promo-q">Queen</button>
-            <button id="promo-r">Rook</button>
-            <button id="promo-b">Bishop</button>
-            <button id="promo-n">Knight</button>
+            <button id="promo-q">♛ Queen</button>
+            <button id="promo-r">♜ Rook</button>
+            <button id="promo-b">♝ Bishop</button>
+            <button id="promo-n">♞ Knight</button>
           </div>
         </div>
       </div>
@@ -93,8 +98,7 @@
     <div id="message" class="message">White to move.</div>
     <details>
       <summary>Rules / notes</summary>
-      <p>Full chess rules: castling (kingside &amp; queenside), en passant, pawn promotion, check, checkmate, and stalemate. Fifty-move rule and threefold repetition not implemented.</p>
-      <p style="margin-top:8px;font-size:.8em">Chess pieces: <a href="https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces" target="_blank" rel="noopener" style="color:var(--accent)">Cburnett set</a> by Colin M.L. Burnett, <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener" style="color:var(--accent)">CC BY-SA 3.0</a>.</p>
+      <p>Full chess rules: castling (kingside &amp; queenside), en passant, pawn promotion, check, checkmate, stalemate, and automatic draws — fifty-move rule, threefold repetition, and insufficient material.</p>
     </details>
   </div>
 
@@ -137,6 +141,7 @@
   let board, turn, castling, epSquare, halfMove, fullMove;
   let selected, legalMoves, lastMove, history, gameOver;
   let capturedByWhite, capturedByBlack;
+  let positionKeys; // one entry per position since game start, for threefold repetition
 
   function newGame() {
     board     = startBoard();
@@ -152,6 +157,9 @@
     gameOver  = false;
     capturedByWhite = [];
     capturedByBlack = [];
+    positionKeys = [posKey()];
+    pendingPromo = null;
+    document.getElementById('promo-overlay').classList.remove('show');
     setMsg("White to move.");
     updateStatus();
     draw();
@@ -300,9 +308,35 @@
     return isAttacked(b, kingSquare(b, c), c === W ? B : W);
   }
 
+  // ── draw rules ────────────────────────────────────────────────────────────
+  function posKey() {
+    return board.join(',') + '|' + turn + '|' +
+      (castling.wk?'K':'') + (castling.wq?'Q':'') + (castling.bk?'k':'') + (castling.bq?'q':'') +
+      '|' + epSquare;
+  }
+
+  function insufficientMaterial(b) {
+    // Dead positions: K vs K, K+minor vs K, K+B vs K+B with same-colour bishops
+    const minors = { [W]: [], [B]: [] };
+    for (let s = 0; s < 64; s++) {
+      const p = b[s];
+      if (!p) continue;
+      const t = type(p);
+      if (t === K) continue;
+      if (t === P || t === R || t === Q) return false;
+      minors[color(p)].push({ t, dark: (row(s) + file(s)) % 2 === 1 });
+    }
+    const w = minors[W], bl = minors[B];
+    if (w.length + bl.length <= 1) return true;
+    if (w.length === 1 && bl.length === 1 &&
+        w[0].t === B_ && bl[0].t === B_ && w[0].dark === bl[0].dark) return true;
+    return false;
+  }
+
   // ── make move ─────────────────────────────────────────────────────────────
   function makeMove(m) {
     const captured = board[m.to] || (m.ep ? piece(turn === W ? B : W, P) : EMPTY);
+    const movedType = type(board[m.from]);
 
     history.push({
       board: board.slice(), turn, castling: {...castling},
@@ -329,17 +363,19 @@
     if (m.from === rc(0,7) || m.to === rc(0,7)) castling.bk = false;
 
     epSquare = m.double ? rc(row(m.to) + (turn === W ? 1 : -1), file(m.to)) : -1;
-    halfMove = (type(board[m.to]) === P || captured) ? 0 : halfMove + 1;
+    halfMove = (movedType === P || captured) ? 0 : halfMove + 1;
     if (turn === B) fullMove++;
 
     lastMove = m;
     turn = turn === W ? B : W;
     selected = -1;
     legalMoves = [];
+    positionKeys.push(posKey());
 
     // Check game over
     const opp = turn;
     const oppMoves = allLegalMoves(board, opp, castling, epSquare);
+    const repetitions = positionKeys.filter(k => k === positionKeys[positionKeys.length - 1]).length;
     if (!oppMoves.length) {
       gameOver = true;
       if (isInCheck(board, opp)) {
@@ -350,6 +386,18 @@
         setMsg("Stalemate — draw.");
         document.getElementById('status-label').textContent = 'Stalemate';
       }
+    } else if (halfMove >= 100) {
+      gameOver = true;
+      setMsg("Draw — fifty-move rule (no capture or pawn move in 50 moves).");
+      document.getElementById('status-label').textContent = 'Draw';
+    } else if (repetitions >= 3) {
+      gameOver = true;
+      setMsg("Draw by threefold repetition.");
+      document.getElementById('status-label').textContent = 'Draw';
+    } else if (insufficientMaterial(board)) {
+      gameOver = true;
+      setMsg("Draw — insufficient material to checkmate.");
+      document.getElementById('status-label').textContent = 'Draw';
     } else if (isInCheck(board, opp)) {
       setMsg(`${opp === W ? 'White' : 'Black'} is in check!`);
       document.getElementById('status-label').textContent = 'Check!';
@@ -364,6 +412,9 @@
 
   function undo() {
     if (!history.length) return setMsg("Nothing to undo.");
+    pendingPromo = null;
+    document.getElementById('promo-overlay').classList.remove('show');
+    positionKeys.pop();
     const s = history.pop();
     board     = s.board;
     turn      = s.turn;
@@ -409,36 +460,26 @@
   const canvas = document.getElementById('board');
   const ctx    = canvas.getContext('2d');
 
-  // ── Piece images — Wikipedia Cburnett SVGs (public domain) ───────────────
-  const PIECE_URLS = {
-    [WK]: 'https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg',
-    [WQ]: 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg',
-    [WR]: 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
-    [WB]: 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg',
-    [WN]: 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg',
-    [WP]: 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
-    [BK]: 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg',
-    [BQ]: 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg',
-    [BR]: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg',
-    [BB]: 'https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg',
-    [BN]: 'https://upload.wikimedia.org/wikipedia/commons/e/ef/Chess_ndt45.svg',
-    [BP]: 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg',
+  // ── Piece glyphs — self-contained Unicode (filled set, coloured via CSS) ──
+  // U+FE0E forces text-style rendering so platforms don't substitute emoji.
+  const PIECE_GLYPHS = {
+    [WK]: '♚', [WQ]: '♛', [WR]: '♜', [WB]: '♝', [WN]: '♞', [WP]: '♟',
+    [BK]: '♚', [BQ]: '♛', [BR]: '♜', [BB]: '♝', [BN]: '♞', [BP]: '♟',
   };
 
   function updatePieceLayer() {
     const layer = document.getElementById('piece-layer');
     const sq    = layer.parentElement.offsetWidth / 8;
-    const pad   = sq * 0.05;
-    const psz   = sq - pad * 2;
     layer.innerHTML = '';
     for (let r = 0; r < 8; r++) {
       for (let f = 0; f < 8; f++) {
         const p = board[rc(r, f)];
         if (!p) continue;
-        const img = document.createElement('img');
-        img.src          = PIECE_URLS[p];
-        img.style.cssText = `left:${f*sq+pad}px;top:${r*sq+pad}px;width:${psz}px;height:${psz}px`;
-        layer.appendChild(img);
+        const span = document.createElement('span');
+        span.className = color(p) === W ? 'piece-w' : 'piece-b';
+        span.textContent = PIECE_GLYPHS[p] + '︎';
+        span.style.cssText = `left:${f*sq}px;top:${r*sq}px;width:${sq}px;height:${sq}px;font-size:${sq*0.78}px;line-height:${sq}px`;
+        layer.appendChild(span);
       }
     }
   }

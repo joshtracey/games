@@ -63,7 +63,7 @@
 (()=>{
 "use strict";
 const RED=1,BLUE=2;
-let N=11,board,turn,history,gameOver,canSwap,swapUsed;
+let N=11,board,turn,history,gameOver,swapUsed;
 
 window.setN=function(n){
   N=n;
@@ -73,16 +73,15 @@ window.setN=function(n){
 
 window.newGame=function(){
   board=Array.from({length:N},()=>new Array(N).fill(0));
-  turn=RED;history=[];gameOver=false;canSwap=true;swapUsed=false;
+  turn=RED;history=[];gameOver=false;swapUsed=false;
   setMsg('Red connects top↔bottom. Blue left↔right. Tap to play.');
   updateStatus();draw();
 };
 
 function place(r,c){
   if(gameOver||board[r][c]!==0)return;
-  history.push({board:board.map(row=>row.slice()),turn,canSwap,swapUsed});
+  history.push({board:board.map(row=>row.slice()),turn,swapUsed});
   board[r][c]=turn;
-  canSwap=false;
   if(checkWin(turn)){
     gameOver=true;
     setMsg(`🎉 ${turn===RED?'Red':'Blue'} wins!`);
@@ -95,12 +94,13 @@ function place(r,c){
 
 function swap(){
   // Blue swaps: find Red's one stone, re-place as Blue at mirrored position
-  if(!canSwap||turn!==BLUE||swapUsed||history.length!==1)return;
-  history.push({board:board.map(r=>r.slice()),turn,canSwap,swapUsed});
+  if(gameOver||turn!==BLUE||swapUsed||history.length!==1)return;
+  history.push({board:board.map(r=>r.slice()),turn,swapUsed});
+  outer:
   for(let r=0;r<N;r++)for(let c=0;c<N;c++){
-    if(board[r][c]===RED){board[r][c]=0;board[c][r]=BLUE;break;}
+    if(board[r][c]===RED){board[r][c]=0;board[c][r]=BLUE;break outer;}
   }
-  swapUsed=true;canSwap=false;
+  swapUsed=true;
   turn=RED;
   setMsg('Swapped! Red to play.');
   updateStatus();draw();
@@ -133,7 +133,7 @@ function checkWin(player){
 window.undoMove=function(){
   if(!history.length)return setMsg('Nothing to undo.');
   const s=history.pop();
-  board=s.board;turn=s.turn;canSwap=s.canSwap;swapUsed=s.swapUsed;gameOver=false;
+  board=s.board;turn=s.turn;swapUsed=s.swapUsed;gameOver=false;
   setMsg(`${turn===RED?'Red':'Blue'} to play.`);
   updateStatus();draw();
 };
@@ -142,6 +142,7 @@ function updateStatus(){
   const tl=document.getElementById('turn-label');
   tl.textContent=gameOver?'Done':(turn===RED?'Red':'Blue');
   tl.style.color=turn===RED?'var(--red)':'var(--blue)';
+  swapBtn.style.display=(!gameOver&&turn===BLUE&&!swapUsed&&history.length===1)?'':'none';
 }
 
 // ── Canvas ──────────────────────────────────────────────────────────────
@@ -233,8 +234,6 @@ const swapBtn=document.createElement('button');
 swapBtn.textContent='Swap (Blue)';swapBtn.style.marginTop='8px';swapBtn.style.width='100%';
 swapBtn.onclick=swap;
 document.querySelector('.controls').after(swapBtn);
-// Show/hide based on eligibility — update in draw
-const origDraw=draw;
 
 newGame();
 })();

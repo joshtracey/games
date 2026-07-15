@@ -273,8 +273,8 @@ function saveHistory() {
 function placeNum(n) {
   if (gameOver || selected === -1 || given[selected]) return;
   if (pencilMode) {
-    saveHistory();
     if (puzzle[selected] !== 0) return; // don't pencil over a number
+    saveHistory();
     if (pencil[selected].has(n)) pencil[selected].delete(n);
     else pencil[selected].add(n);
     render(); return;
@@ -306,6 +306,7 @@ function placeNum(n) {
 
 window.eraseCell = function() {
   if (gameOver || selected === -1 || given[selected]) return;
+  if (puzzle[selected] === 0 && pencil[selected].size === 0) return; // nothing to erase
   saveHistory();
   puzzle[selected] = 0;
   pencil[selected].clear();
@@ -319,7 +320,7 @@ window.undoAction = function() {
   pencil  = s.pencil;
   mistakes = s.mistakes;
   document.getElementById('mistakes').textContent = mistakes;
-  gameOver = false;
+  if (gameOver) { gameOver = false; resumeTimer(); setMsg(''); }
   render();
 };
 
@@ -388,7 +389,6 @@ function renderBoard() {
 
     cell.addEventListener('pointerup', () => {
       if (gameOver) return;
-      selected = (selected === i && !given[i]) ? i : i;
       selected = i;
       render();
     });
@@ -432,6 +432,10 @@ function startTimer() {
   timerInt = setInterval(() => { timerSec++; updateTimer(); }, 1000);
 }
 function stopTimer() { clearInterval(timerInt); }
+function resumeTimer() {
+  stopTimer();
+  timerInt = setInterval(() => { timerSec++; updateTimer(); }, 1000);
+}
 function updateTimer() {
   const m = Math.floor(timerSec/60), s = timerSec%60;
   document.getElementById('timer').textContent = `${m}:${s.toString().padStart(2,'0')}`;
