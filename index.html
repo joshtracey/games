@@ -4,6 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Games</title>
+  <meta name="description" content="Pass-and-play classic board & card games — works fully offline." />
+  <meta name="theme-color" content="#0f1117" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-180.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Games" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
@@ -77,6 +84,20 @@
     .rules-link:hover { border-color: rgba(255,255,255,.15); color: var(--text); }
 
     footer { margin-top: 20px; font-size: .7rem; color: var(--muted); text-align: center; }
+
+    #update-banner {
+      display: none; position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+      align-items: center; gap: 12px; z-index: 100;
+      background: var(--surface); border: 1px solid rgba(255,255,255,.2);
+      border-radius: 12px; padding: 10px 14px; font-size: .85rem;
+      box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    }
+    #update-banner.show { display: flex; }
+    #update-banner button {
+      border: 1px solid rgba(76,158,232,.5); background: rgba(76,158,232,.15);
+      color: #93c5fd; border-radius: 8px; padding: 6px 14px;
+      font: inherit; cursor: pointer;
+    }
 
     @media (max-width: 400px) { .grid { grid-template-columns: 1fr; } }
   </style>
@@ -159,7 +180,55 @@
     </div>
 
     <a href="rules/" class="rules-link">📖 Rules &amp; instructions →</a>
-    <footer>joshtracey.github.io/games</footer>
+    <footer>joshtracey.github.io/games<span id="app-version"></span></footer>
   </div>
+
+  <div id="update-banner">
+    <span>Update ready</span>
+    <button id="update-btn">Reload</button>
+  </div>
+
+  <script>
+  // Offline support: registers the service worker, shows the cached version in
+  // the footer, and offers a one-tap reload when a new version is downloaded.
+  if ('serviceWorker' in navigator) {
+    const showVersion = () => {
+      const sw = navigator.serviceWorker.controller;
+      if (!sw) return;
+      const ch = new MessageChannel();
+      ch.port1.onmessage = (e) => {
+        document.getElementById('app-version').textContent = ' · ' + e.data + ' · offline-ready';
+      };
+      sw.postMessage({ type: 'GET_VERSION' }, [ch.port2]);
+    };
+
+    const offerUpdate = (worker) => {
+      const banner = document.getElementById('update-banner');
+      banner.classList.add('show');
+      document.getElementById('update-btn').onclick = () => {
+        worker.postMessage({ type: 'SKIP_WAITING' });
+      };
+    };
+
+    navigator.serviceWorker.register('sw.js').then((reg) => {
+      if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(nw);
+        });
+      });
+    });
+
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloading) return;
+      reloading = true;
+      location.reload();
+    });
+
+    navigator.serviceWorker.ready.then(showVersion);
+  }
+  </script>
 </body>
 </html>
