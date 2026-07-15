@@ -38,7 +38,9 @@
       font-family: "Apple Symbols", "Segoe UI Symbol", "Noto Sans Symbols 2", "DejaVu Sans", sans-serif;
     }
     .piece-w { color: #fafafa; text-shadow: 0 0 2px #000, 0 2px 2px rgba(0,0,0,.45); }
-    .piece-b { color: #161616; text-shadow: 0 0 2px rgba(255,255,255,.55), 0 2px 2px rgba(0,0,0,.35); }
+    /* Black pieces face the player at the top edge, so the phone can lie
+       flat on the table between the two players. */
+    .piece-b { color: #161616; text-shadow: 0 0 2px rgba(255,255,255,.55), 0 -2px 2px rgba(0,0,0,.35); transform: rotate(180deg); }
     .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
     button { border: 0; border-radius: 12px; min-height: 44px; padding: 10px 12px; font: inherit; color: var(--text); background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.12); cursor: pointer; }
     button:active { transform: translateY(1px); }
