@@ -1,12 +1,12 @@
 {
-  "name": "Classic Games",
-  "short_name": "Games",
+  "name": "2Pgames",
+  "short_name": "2Pgames",
   "description": "Pass-and-play classic board & card games — works fully offline.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f1117",
+  "background_color": "#000000",
   "theme_color": "#0f1117",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
