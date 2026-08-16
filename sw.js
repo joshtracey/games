@@ -4,12 +4,13 @@
 // Phones re-fetch this file whenever the app is opened online; a changed
 // version triggers a background download of everything in PRECACHE, and the
 // menu page shows an "Update ready" banner to switch over.
-const CACHE = 'games-v6';
+const CACHE = 'games-v7';
 
 const PRECACHE = [
   './',
   './index.html',
   './manifest.json',
+  './wakelock.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-180.png',
