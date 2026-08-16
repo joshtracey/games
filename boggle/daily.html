@@ -12,7 +12,7 @@
     <h1>Daily Puzzle</h1>
     <a class="back" href="index.html">← Boggle</a>
   </div>
-  <div class="sub" id="date-sub">The same 4×4 board for the whole family — 5 minutes</div>
+  <div class="sub" id="date-sub">The same 4×4 board for the whole family — 3 minutes</div>
 
   <div class="panel" id="setup">
     <div class="message" id="setup-msg" style="margin-bottom:10px"></div>
@@ -21,7 +21,7 @@
 
   <div class="panel" id="game" style="display:none">
     <div class="row" style="justify-content:space-between">
-      <div class="timer" id="timer">5:00</div>
+      <div class="timer" id="timer">3:00</div>
       <div class="lbl">Score: <b id="score" style="color:var(--gold);font-size:1.2rem">0</b></div>
     </div>
     <div id="board" class="board"></div>
@@ -57,7 +57,7 @@
 <script src="firebase-config.js"></script>
 <script>
 'use strict';
-const GAME_SECONDS = 300;
+const GAME_SECONDS = 180;
 const SIZE = 4;
 const $ = (id) => document.getElementById(id);
 const name = ensurePlayerName();
@@ -76,7 +76,7 @@ function dailyBoard(date) {
   return generateBoard(SIZE, mulberry32(hashSeed('boggle-daily-' + date)));
 }
 
-$('date-sub').textContent = `Puzzle for ${playDate} — same 4×4 board for everyone, 5 minutes`;
+$('date-sub').textContent = `Puzzle for ${playDate} — same 4×4 board for everyone, 3 minutes`;
 $('setup-msg').textContent = `Everyone gets the identical board. Your best score for the day counts.`;
 
 $('start').onclick = startGame;
