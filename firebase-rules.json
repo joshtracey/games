@@ -49,6 +49,40 @@
           ".validate": "$code.matches(/^[A-Z]{3}$/)"
         }
       }
+    },
+    "scattergories": {
+      "daily": {
+        "days": {
+          "$date": {
+            ".read": true,
+            "$name": {
+              ".write": "auth != null && !data.exists()",
+              ".validate": "$date.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) && newData.hasChildren(['name', 'at'])",
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 24"
+              },
+              "at": {
+                ".validate": "newData.isNumber()"
+              },
+              "answers": {
+                "$slot": {
+                  ".validate": "$slot.matches(/^c[0-9]{1,2}$/) && newData.isString() && newData.val().length <= 40"
+                }
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          }
+        }
+      },
+      "rooms": {
+        "$code": {
+          ".read": true,
+          ".write": "auth != null",
+          ".validate": "$code.matches(/^[A-Z]{3}$/)"
+        }
+      }
     }
   }
 }

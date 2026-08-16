@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Scattergories — Tabletop</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <h1>Tabletop</h1>
+    <a class="back" href="index.html">← Scattergories</a>
+  </div>
+  <div class="sub">Everyone in the room gets the same letter and the same list</div>
+
+  <!-- Entry -->
+  <div class="panel" id="v-entry">
+    <button class="btn wide" id="host">Host a new game</button>
+    <div class="spacer"></div>
+    <div class="row" style="margin-bottom:0">
+      <input class="text" id="join-code" maxlength="3" placeholder="ABC" autocomplete="off"
+             autocapitalize="characters" spellcheck="false"
+             style="flex:1;text-transform:uppercase;letter-spacing:.3em;text-align:center;font-weight:700" />
+      <button class="btn" id="join">Join</button>
+    </div>
+    <div class="message" id="entry-msg"></div>
+  </div>
+
+  <!-- Lobby -->
+  <div class="panel" id="v-lobby" style="display:none">
+    <div class="lbl center">Room code — share it out loud</div>
+    <div class="code-display" id="code"></div>
+    <div class="player-list" id="players"></div>
+    <div id="host-controls" style="display:none">
+      <div class="row" style="justify-content:center">
+        <span class="lbl">Round:</span>
+        <button class="seg" id="min2">2 min</button>
+        <button class="seg" id="min3">3 min</button>
+      </div>
+      <button class="btn wide" id="start-round">Start round</button>
+    </div>
+    <div class="message" id="lobby-msg"></div>
+    <div class="spacer"></div>
+    <button class="btn wide danger" id="leave">Leave room</button>
+  </div>
+
+  <!-- Countdown -->
+  <div class="panel center" id="v-count" style="display:none">
+    <div class="lbl">Get ready…</div>
+    <div class="timer" id="count-num" style="font-size:3.5rem">3</div>
+  </div>
+
+  <!-- Play -->
+  <div class="panel" id="v-game" style="display:none">
+    <div class="letter-card">
+      <div class="cap">Letter</div>
+      <div class="glyph" id="letter">A</div>
+    </div>
+    <div class="timer" id="timer">3:00</div>
+    <div class="message" id="msg">Only you can see your sheet.</div>
+    <div id="sheet" class="sheet"></div>
+  </div>
+
+  <!-- Results -->
+  <div class="panel" id="v-results" style="display:none">
+    <h2 style="margin:4px 0 4px" class="center">Round <span id="round-num"></span> — letter <span id="res-letter" style="color:var(--accent)"></span></h2>
+    <div class="message" id="veto-hint" style="margin-bottom:10px"></div>
+    <div class="results-grid" id="results"></div>
+    <div class="message" style="margin-top:10px">Struck-through answers were said by more than one player, or ruled out by the table.</div>
+    <div class="spacer"></div>
+    <div id="results-host" style="display:none"><button class="btn wide" id="again">Back to lobby</button></div>
+    <div class="message" id="results-wait"></div>
+    <div class="spacer"></div>
+    <button class="btn wide danger" id="leave2">Leave room</button>
+  </div>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="categories.js"></script>
+<script src="core.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+'use strict';
+const PREROLL_MS = 3000;
+const SAVE_DEBOUNCE_MS = 500;
+const $ = (id) => document.getElementById(id);
+const name = ensurePlayerName();
+const fb = fbBoot();
+
+let uid = null;
+let offset = 0;               // server clock offset
+let code = null;              // current room code
+let room = null;              // latest room snapshot value
+let roomRef = null;
+let sheetUI = null;
+let sheetRound = -1;          // round the current sheet UI was built for
+let hostMinutes = getSettings().minutes;
+let phaseTick = null;
+let saveTimer = null;
+let pendingSave = null;
+
+const serverNow = () => Date.now() + offset;
+const roundMs = (r) => (r.minutes === 2 ? 2 : 3) * 60000;
+
+/* ---------- view plumbing ---------- */
+const VIEWS = ['v-entry', 'v-lobby', 'v-count', 'v-game', 'v-results'];
+function show(view) {
+  VIEWS.forEach((v) => { $(v).style.display = v === view ? '' : 'none'; });
+}
+function setMsg(id, text, cls) {
+  $(id).textContent = text;
+  $(id).className = 'message ' + (cls || '');
+}
+
+/* ---------- entry ---------- */
+$('host').onclick = hostRoom;
+$('join').onclick = () => joinRoom($('join-code').value.trim().toUpperCase());
+$('join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('join').click(); });
+
+async function ready() {
+  if (!fb) throw new Error('offline');
+  const u = await fb.authReady;
+  if (!u) throw new Error('auth');
+  uid = u.uid;
+  offset = await fbServerOffset(fb.db);
+}
+
+function roomAlive(r) {
+  return r && r.expiresAt && serverNow() < r.expiresAt;
+}
+
+async function hostRoom() {
+  setMsg('entry-msg', 'Creating room…');
+  try {
+    await ready();
+    let c, tries = 0;
+    for (;;) {
+      c = randomRoomCode();
+      const snap = await fb.db.ref('scattergories/rooms/' + c).once('value');
+      if (!roomAlive(snap.val()) || ++tries > 30) break;
+    }
+    await fb.db.ref('scattergories/rooms/' + c).set({
+      createdAt: firebase.database.ServerValue.TIMESTAMP,
+      expiresAt: hfxNextMidnight(),   // rooms die at Atlantic midnight
+      host: uid,
+      hostName: name,
+      minutes: hostMinutes,
+      state: 'lobby',
+      round: 0,
+      players: { [uid]: { name } },
+    });
+    enterRoom(c);
+  } catch (e) {
+    setMsg('entry-msg', 'Couldn’t create a room — check your connection.', 'err');
+  }
+}
+
+async function joinRoom(c) {
+  if (!/^[A-Z]{3}$/.test(c)) return setMsg('entry-msg', 'Codes are 3 letters.', 'err');
+  setMsg('entry-msg', 'Joining…');
+  try {
+    await ready();
+    const snap = await fb.db.ref('scattergories/rooms/' + c).once('value');
+    if (!roomAlive(snap.val())) return setMsg('entry-msg', 'No room with that code.', 'err');
+    await fb.db.ref(`scattergories/rooms/${c}/players/${uid}`).set({ name });
+    enterRoom(c);
+  } catch (e) {
+    setMsg('entry-msg', 'Couldn’t join — check your connection.', 'err');
+  }
+}
+
+function enterRoom(c) {
+  code = c;
+  sessionStorage.setItem('scat-room', c);
+  $('code').textContent = c;
+  roomRef = fb.db.ref('scattergories/rooms/' + c);
+  roomRef.on('value', (snap) => {
+    room = snap.val();
+    render();
+  });
+  clearInterval(phaseTick);
+  phaseTick = setInterval(() => { if (room && room.state === 'playing') render(); }, 200);
+}
+
+function leaveRoom() {
+  flushSave();
+  if (roomRef) roomRef.off();
+  if (code && uid && room && room.host !== uid) {
+    fb.db.ref(`scattergories/rooms/${code}/players/${uid}`).remove().catch(() => {});
+  }
+  sessionStorage.removeItem('scat-room');
+  clearInterval(phaseTick);
+  roomRef = null; room = null; code = null; sheetRound = -1;
+  show('v-entry');
+  setMsg('entry-msg', '');
+}
+$('leave').onclick = leaveRoom;
+$('leave2').onclick = leaveRoom;
+
+/* ---------- host controls ---------- */
+function paintMinutes() {
+  $('min2').classList.toggle('active', hostMinutes === 2);
+  $('min3').classList.toggle('active', hostMinutes === 3);
+}
+function setHostMinutes(m) {
+  hostMinutes = m;
+  saveSettings({ minutes: m });
+  paintMinutes();
+  if (roomRef && room && room.host === uid && room.state === 'lobby') {
+    roomRef.update({ minutes: m });
+  }
+}
+$('min2').onclick = () => setHostMinutes(2);
+$('min3').onclick = () => setHostMinutes(3);
+
+$('start-round').onclick = () => {
+  roomRef.update({
+    state: 'playing',
+    minutes: hostMinutes,
+    seed: Math.floor(Math.random() * 0xffffffff),
+    round: (room.round || 0) + 1,
+    startAt: firebase.database.ServerValue.TIMESTAMP,
+    answers: null,
+    vetoes: null,
+  });
+};
+$('again').onclick = () => roomRef.update({ state: 'lobby', answers: null, vetoes: null });
+
+/* ---------- the round's sheet ---------- */
+function roundSheet() {
+  return makeSheet(mulberry32(room.seed >>> 0));
+}
+
+// Answers are written as you type (debounced) so a phone that locks, refreshes
+// or dies mid-round still has everything typed so far in the room.
+function queueSave(index, value) {
+  pendingSave = pendingSave || {};
+  pendingSave['c' + index] = value.trim();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSave, SAVE_DEBOUNCE_MS);
+}
+
+function flushSave() {
+  clearTimeout(saveTimer);
+  if (!pendingSave || !code || !uid) { pendingSave = null; return; }
+  const patch = {};
+  for (const [k, v] of Object.entries(pendingSave)) patch[k] = v || null;
+  pendingSave = null;
+  fb.db.ref(`scattergories/rooms/${code}/answers/${uid}`).update(patch).catch(() => {});
+}
+// A backgrounded phone may never run another timer, so flush on the way out.
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushSave(); });
+window.addEventListener('pagehide', flushSave);
+
+/* ---------- render loop ---------- */
+function render() {
+  if (!code) return;
+  if (!roomAlive(room)) {
+    if (room === null && roomRef) {         // room deleted or expired away
+      leaveRoom();
+      setMsg('entry-msg', 'That room has closed.', 'err');
+    } else if (room && room.expiresAt && serverNow() >= room.expiresAt) {
+      leaveRoom();
+      setMsg('entry-msg', 'That room expired at midnight.', 'err');
+    }
+    return;
+  }
+
+  const isHost = room.host === uid;
+
+  if (room.state === 'lobby') {
+    sheetRound = -1;
+    show('v-lobby');
+    const players = Object.values(room.players || {});
+    $('players').innerHTML = players
+      .map((p) => `<span class="player-pill">${escapeHtml(p.name)}</span>`).join('');
+    $('host-controls').style.display = isHost ? '' : 'none';
+    if (isHost) {
+      hostMinutes = room.minutes || hostMinutes;
+      paintMinutes();
+      setMsg('lobby-msg', players.length < 2 ? 'Waiting for players to join…' : 'Ready when you are!');
+    } else {
+      setMsg('lobby-msg', `Waiting for ${escapeHtml(room.hostName)} to start…`);
+    }
+    return;
+  }
+
+  // state === 'playing': phase depends on server time
+  const playStart = room.startAt + PREROLL_MS;
+  const playEnd = playStart + roundMs(room);
+  const now = serverNow();
+
+  if (now < playStart) {
+    show('v-count');
+    $('count-num').textContent = Math.max(1, Math.ceil((playStart - now) / 1000));
+    prepareRound();
+    return;
+  }
+
+  if (now < playEnd) {
+    prepareRound();
+    show('v-game');
+    const secLeft = Math.ceil((playEnd - now) / 1000);
+    $('timer').textContent = fmtTime(secLeft);
+    $('timer').classList.toggle('urgent', secLeft <= 15);
+    return;
+  }
+
+  if (sheetUI) { sheetUI.setEnabled(false); flushSave(); }
+  showResults(isHost);
+}
+
+// Build the sheet UI once per round.
+function prepareRound() {
+  if (sheetRound === room.round) return;
+  sheetRound = room.round;
+  pendingSave = null;
+  const { letter, categories } = roundSheet();
+  $('letter').textContent = letter;
+  setMsg('msg', 'Only you can see your sheet.');
+  sheetUI = createSheetUI($('sheet'), {
+    categories, letter,
+    values: (room.answers && room.answers[uid]) || {},   // restore after a refresh
+    onChange: queueSave,
+  });
+}
+
+let resultsKey = '';
+function showResults(isHost) {
+  show('v-results');
+  $('results-host').style.display = isHost ? '' : 'none';
+  $('results-wait').textContent = isHost ? '' : `Waiting for ${room.hostName} to start the next round…`;
+  $('veto-hint').textContent = isHost
+    ? 'Tap any answer to rule it out if the table disagrees with it.'
+    : 'The host can rule out answers the table disagrees with.';
+
+  // Rebuild only when the round, answers or vetoes change (a slow phone's
+  // last answer can land moments after the timer ends).
+  const key = room.round + '|' + JSON.stringify(room.answers || {}) + '|' + JSON.stringify(room.vetoes || {});
+  if (key === resultsKey) return;
+  resultsKey = key;
+
+  const { letter, categories } = roundSheet();
+  const players = room.players || {};
+  $('round-num').textContent = room.round;
+  $('res-letter').textContent = letter;
+
+  // Everyone in the room gets a column, even if they wrote nothing.
+  const sheets = {};
+  for (const pid of Object.keys(players)) sheets[pid] = (room.answers || {})[pid] || {};
+  const { byPlayer } = scoreRound(sheets, letter, categories.length, room.vetoes || {});
+
+  const cols = Object.keys(players)
+    .sort((a, b) => byPlayer[b].total - byPlayer[a].total)
+    .map((pid) => {
+      const { total, cells } = byPlayer[pid];
+      const list = cells.map((cell, i) => {
+        const tag = isHost && cell.state !== 'blank' ? 'button' : 'div';
+        const why = cell.state === 'unique' || cell.state === 'blank'
+          ? '' : `<span class="why">${escapeHtml(cell.reason || '')}</span>`;
+        const text = cell.state === 'blank'
+          ? `<span class="a">${escapeHtml(categories[i])} — blank</span>`
+          : `<span class="a">${escapeHtml(cell.answer)}</span>`;
+        return `<${tag} class="answer-chip ${cell.state}"` +
+               (tag === 'button' ? ` data-pid="${pid}" data-idx="${i}"` : '') +
+               `><span class="n">${i + 1}</span>${text}${why}</${tag}>`;
+      }).join('');
+      return `<div class="result-col"><h3>${escapeHtml(players[pid].name)} — <span class="total">${total}</span></h3>` +
+             `<div class="answer-list">${list}</div></div>`;
+    }).join('');
+  $('results').innerHTML = cols;
+
+  if (isHost) {
+    $('results').querySelectorAll('button.answer-chip').forEach((btn) => {
+      btn.onclick = () => {
+        const pid = btn.dataset.pid, idx = btn.dataset.idx;
+        const on = !((room.vetoes || {})[pid] || {})['c' + idx];
+        fb.db.ref(`scattergories/rooms/${code}/vetoes/${pid}/c${idx}`)
+          .set(on ? true : null).catch(() => {});
+      };
+    });
+  }
+}
+
+/* ---------- boot: rejoin after a refresh ---------- */
+(async () => {
+  if (!fb) { setMsg('entry-msg', 'Tabletop games need a connection.', 'err'); return; }
+  paintMinutes();
+  const saved = sessionStorage.getItem('scat-room');
+  if (!saved) return;
+  try {
+    await ready();
+    const snap = await fb.db.ref('scattergories/rooms/' + saved).once('value');
+    const r = snap.val();
+    if (roomAlive(r) && r.players && r.players[uid]) enterRoom(saved);
+    else sessionStorage.removeItem('scat-room');
+  } catch (e) {}
+})();
+</script>
+<script src="../wakelock.js"></script>
+</body>
+</html>

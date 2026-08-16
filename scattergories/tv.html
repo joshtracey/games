@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Scattergories — TV Screen</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="tv">
+<main class="wide">
+  <div class="topbar">
+    <h1>Scattergories</h1>
+    <a class="back" href="index.html">← Menu</a>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <span class="lbl">Round:</span>
+      <button class="seg" id="min2">2 min</button>
+      <button class="seg" id="min3">3 min</button>
+      <button class="btn ghost" id="new" style="margin-left:auto">New round</button>
+    </div>
+
+    <div class="letter-card">
+      <div class="cap">Letter</div>
+      <div class="glyph" id="letter">?</div>
+    </div>
+    <div class="timer timer-row" id="timer" style="font-size:2.4rem">3:00</div>
+    <div id="sheet" class="sheet"></div>
+    <div class="message" id="msg" style="font-size:1.1rem;margin-top:12px">Tap “New round” to roll the letter.</div>
+  </div>
+</main>
+<script src="categories.js"></script>
+<script src="core.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+let minutes = getSettings().minutes;
+
+const countdown = createCountdown(
+  (sec) => {
+    $('timer').textContent = fmtTime(sec);
+    $('timer').classList.toggle('urgent', sec <= 15);
+  },
+  () => {
+    $('msg').textContent = "Time's up — pencils down!";
+    buzz();
+  }
+);
+
+function buzz() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 440;
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.8);
+  } catch (e) {}
+}
+
+function paintMinutes() {
+  $('min2').classList.toggle('active', minutes === 2);
+  $('min3').classList.toggle('active', minutes === 3);
+}
+function setMinutes(m) {
+  minutes = m;
+  saveSettings({ minutes: m });
+  paintMinutes();
+  newRound();
+}
+$('min2').onclick = () => setMinutes(2);
+$('min3').onclick = () => setMinutes(3);
+$('new').onclick = newRound;
+
+function newRound() {
+  const { letter, categories } = makeSheet();
+  $('letter').textContent = letter;
+  createSheetUI($('sheet'), { categories, letter, interactive: false });
+  $('msg').textContent = 'Go — write your answers on paper!';
+  countdown.start(minutes * 60000);
+}
+
+paintMinutes();
+// Show a sheet immediately so a cast screen isn't blank, but leave the clock
+// stopped until someone actually starts the round.
+const preview = makeSheet();
+$('letter').textContent = preview.letter;
+createSheetUI($('sheet'), { categories: preview.categories, letter: preview.letter, interactive: false });
+$('timer').textContent = fmtTime(minutes * 60);
+</script>
+<script src="../wakelock.js"></script>
+</body>
+</html>

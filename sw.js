@@ -4,7 +4,7 @@
 // Phones re-fetch this file whenever the app is opened online; a changed
 // version triggers a background download of everything in PRECACHE, and the
 // menu page shows an "Update ready" banner to switch over.
-const CACHE = 'games-v9';
+const CACHE = 'games-v10';
 
 const PRECACHE = [
   './',
@@ -41,6 +41,15 @@ const PRECACHE = [
   './quoridor/',
   './reversi/',
   './rules/',
+  './scattergories/',
+  './scattergories/settings.html',
+  './scattergories/tabletop.html',
+  './scattergories/tv.html',
+  './scattergories/daily.html',
+  './scattergories/style.css',
+  './scattergories/core.js',
+  './scattergories/categories.js',
+  './scattergories/firebase-config.js',
   './settlers/',
   './sudoku/',
 ];

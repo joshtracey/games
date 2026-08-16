@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Scattergories — Quiz of the Day</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <h1>Quiz of the Day</h1>
+    <a class="back" href="index.html">← Scattergories</a>
+  </div>
+  <div class="sub" id="date-sub">The same letter and list for the whole family — 3 minutes</div>
+
+  <div class="panel" id="setup">
+    <div class="message" id="setup-msg" style="margin-bottom:10px"></div>
+    <button class="btn wide" id="start">Play today's quiz</button>
+  </div>
+
+  <div class="panel" id="game" style="display:none">
+    <div class="letter-card">
+      <div class="cap">Letter</div>
+      <div class="glyph" id="letter">A</div>
+    </div>
+    <div class="timer" id="timer">3:00</div>
+    <div class="message" id="msg">One answer per line, all starting with the letter.</div>
+    <div id="sheet" class="sheet"></div>
+  </div>
+
+  <div class="panel" id="done" style="display:none">
+    <h2 class="center" style="margin:4px 0">Score: <span id="final" style="color:var(--gold)"></span></h2>
+    <div class="message" id="done-msg"></div>
+    <div class="spacer"></div>
+    <div class="answer-list" id="my-answers"></div>
+  </div>
+
+  <div class="panel">
+    <div class="tabs">
+      <button class="tab active" data-tab="today">Today</button>
+      <button class="tab" data-tab="mine">My history</button>
+    </div>
+    <div id="lb"><div class="message">Loading…</div></div>
+  </div>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="categories.js"></script>
+<script src="core.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+'use strict';
+const GAME_SECONDS = 180;
+const $ = (id) => document.getElementById(id);
+const name = ensurePlayerName();
+const fb = fbBoot();
+
+// The puzzle date is fixed in Atlantic time so the whole family — wherever
+// they are — flips to the new quiz at the same moment.
+let playDate = hfxDateString();
+let sheet = null, sheetUI = null;
+let playing = false;
+let lbTab = 'today';
+
+$('date-sub').textContent = `Quiz for ${playDate} — same letter and list for everyone, 3 minutes`;
+$('setup-msg').textContent = 'Answers nobody else gives are worth a point each — so think twice about the obvious one.';
+
+$('start').onclick = startGame;
+
+const countdown = createCountdown(
+  (sec) => {
+    $('timer').textContent = fmtTime(sec);
+    $('timer').classList.toggle('urgent', sec <= 15);
+  },
+  endGame
+);
+
+function startGame() {
+  playDate = hfxDateString();   // capture the actual play date for offline sync
+  sheet = dailySheet(playDate);
+  playing = true;
+  $('letter').textContent = sheet.letter;
+  $('msg').textContent = 'One answer per line, all starting with ' + sheet.letter + '. Go!';
+  $('msg').className = 'message';
+  $('setup').style.display = 'none';
+  $('done').style.display = 'none';
+  $('game').style.display = '';
+  sheetUI = createSheetUI($('sheet'), { categories: sheet.categories, letter: sheet.letter });
+  countdown.start(GAME_SECONDS * 1000);
+  sheetUI.focusFirst();
+}
+
+function endGame() {
+  playing = false;
+  sheetUI.setEnabled(false);
+  $('done').style.display = '';
+  $('done-msg').textContent = 'Submitting your sheet…';
+  $('final').textContent = '…';
+  submitSheet(sheetUI.values());
+}
+
+/* ---- local history mirror (offline display) ---- */
+const HIST_KEY = 'scat-daily-history';
+function localHistory() {
+  try { return JSON.parse(localStorage.getItem(HIST_KEY)) || {}; } catch (e) { return {}; }
+}
+function setLocalHistory(date, score) {
+  const h = localHistory();
+  h[date] = score;
+  localStorage.setItem(HIST_KEY, JSON.stringify(h));
+}
+
+async function submitSheet(answers) {
+  // Queued with the date the quiz was PLAYED, so a sheet finished offline on
+  // Tuesday still lands on Tuesday's board when it syncs on Thursday.
+  const entry = { mode: 'daily', date: playDate, name, answers, at: Date.now() };
+  if (fb) {
+    try {
+      const u = await fb.authReady;
+      if (u) {
+        await fbSubmitDaily(fb.db, entry);
+        await showResult();
+        loadLeaderboard();
+        return;
+      }
+    } catch (e) {}
+  }
+  ScatQueue.push(entry);
+  showResult(answers);
+  loadLeaderboard();
+}
+
+// Scores are always recomputed against everyone who has played the day, so a
+// sheet's total can drop later when someone else gives the same answer.
+async function showResult(offlineAnswers) {
+  const day = await loadDay(playDate);
+  const me = nameKey(name);
+  let sheets, mine;
+  if (day && day[me]) {
+    sheets = {};
+    for (const [k, v] of Object.entries(day)) sheets[k] = v.answers || {};
+    mine = me;
+  } else {
+    sheets = { [me]: offlineAnswers || {} };   // offline: nothing to compare against yet
+    mine = me;
+  }
+  const { byPlayer } = scoreRound(sheets, sheet.letter, sheet.categories.length);
+  const res = byPlayer[mine];
+  const others = Object.keys(sheets).length - 1;
+
+  $('final').textContent = res.total;
+  setLocalHistory(playDate, res.total);
+  $('done-msg').textContent = others > 0
+    ? `${res.total} answer${res.total === 1 ? '' : 's'} nobody else gave, out of ${others + 1} sheet${others ? 's' : ''} so far.`
+    : 'You are first today — every valid answer scores until someone matches it.';
+  $('my-answers').innerHTML = res.cells.map((cell, i) => {
+    const why = cell.state === 'unique' ? '' : `<span class="why">${escapeHtml(cell.reason || '')}</span>`;
+    const text = cell.state === 'blank'
+      ? `<span class="a">${escapeHtml(sheet.categories[i])} — blank</span>`
+      : `<span class="a">${escapeHtml(cell.answer)}</span>`;
+    return `<div class="answer-chip ${cell.state}"><span class="n">${i + 1}</span>${text}${why}</div>`;
+  }).join('');
+}
+
+async function loadDay(date) {
+  if (!fb) return null;
+  try {
+    await fb.authReady;
+    const snap = await fb.db.ref(`scattergories/daily/days/${date}`).once('value');
+    return snap.val();
+  } catch (e) {
+    return null;
+  }
+}
+
+/* ---- leaderboards ---- */
+document.querySelectorAll('.tab').forEach((t) => {
+  t.onclick = () => {
+    lbTab = t.dataset.tab;
+    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
+    loadLeaderboard();
+  };
+});
+
+async function loadLeaderboard() {
+  const el = $('lb');
+  const today = hfxDateString();
+
+  if (lbTab === 'mine') {
+    const hist = localHistory();
+    const dates = Object.keys(hist).sort().reverse();
+    if (!dates.length) { el.innerHTML = '<div class="message">No quizzes yet — play today’s!</div>'; return; }
+    const best = Math.max(...Object.values(hist));
+    el.innerHTML =
+      `<div class="message" style="margin-bottom:8px">Best ever: <b style="color:var(--gold)">${best}</b></div>` +
+      `<table class="board-list"><tr><th>Day</th><th class="num">Score</th></tr>` +
+      dates.slice(0, 30).map((d) => `<tr${d === today ? ' class="me"' : ''}><td>${d}</td><td class="num">${hist[d]}</td></tr>`).join('') +
+      `</table>`;
+    return;
+  }
+
+  if (!fb) { el.innerHTML = '<div class="message">This tab needs a connection.</div>'; return; }
+  el.innerHTML = '<div class="message">Loading…</div>';
+  const day = await loadDay(today);
+  if (!day) { el.innerHTML = '<div class="message">No sheets yet today — be first!</div>'; return; }
+
+  const todaySheet = dailySheet(today);
+  const sheets = {};
+  for (const [k, v] of Object.entries(day)) sheets[k] = v.answers || {};
+  const { byPlayer } = scoreRound(sheets, todaySheet.letter, todaySheet.categories.length);
+  const rows = Object.keys(day)
+    .map((k) => ({ key: k, name: day[k].name, score: byPlayer[k].total }))
+    .sort((a, b) => b.score - a.score);
+
+  el.innerHTML = `<table class="board-list"><tr><th>#</th><th>Player</th><th class="num">${today}</th></tr>` +
+    rows.map((r, i) => `<tr${r.key === nameKey(name) ? ' class="me"' : ''}><td>${i + 1}</td>` +
+      `<td>${escapeHtml(r.name)}</td><td class="num">${r.score}</td></tr>`).join('') +
+    `</table>` +
+    `<div class="message" style="margin-top:8px">Scores shift as more people play — matching answers cancel each other out.</div>`;
+}
+
+// Already played today? Show the standing rather than offering a replay: the
+// sheet is stored once per player per day so answers can't be revised.
+(async () => {
+  loadLeaderboard();
+  const day = await loadDay(playDate);
+  if (day && day[nameKey(name)]) {
+    sheet = dailySheet(playDate);
+    $('setup').style.display = 'none';
+    $('done').style.display = '';
+    await showResult();
+  }
+})();
+</script>
+<script src="../wakelock.js"></script>
+</body>
+</html>

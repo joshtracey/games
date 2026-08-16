@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Scattergories — Settings</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <h1>Settings</h1>
+    <a class="back" href="index.html">← Scattergories</a>
+  </div>
+  <div class="sub">Saved on this device</div>
+
+  <div class="panel">
+    <div class="lbl" style="margin-bottom:6px">Player name (shown on leaderboards)</div>
+    <input class="text" id="name" maxlength="24" placeholder="e.g. Theo, Gus, Grammy" autocomplete="off" />
+    <div class="spacer"></div>
+
+    <div class="row">
+      <span class="lbl">Round length:</span>
+      <button class="seg" id="min2">2 min</button>
+      <button class="seg" id="min3">3 min</button>
+    </div>
+    <div class="lbl" style="margin-bottom:12px">
+      Used for TV rounds and whenever you host a tabletop game. The Quiz of the
+      Day is always 3 minutes so everyone gets the same shot at it.
+    </div>
+
+    <button class="btn wide" id="save">Save</button>
+    <div class="message" id="msg"></div>
+  </div>
+</main>
+<script src="categories.js"></script>
+<script src="core.js"></script>
+<script>
+'use strict';
+let s = getSettings();
+const $ = (id) => document.getElementById(id);
+
+function paint() {
+  $('name').value = s.name;
+  $('min2').classList.toggle('active', s.minutes === 2);
+  $('min3').classList.toggle('active', s.minutes === 3);
+}
+$('min2').onclick = () => { s.minutes = 2; paint(); };
+$('min3').onclick = () => { s.minutes = 3; paint(); };
+$('save').onclick = () => {
+  const name = $('name').value.trim().slice(0, 24);
+  if (!name) { $('msg').textContent = 'Please enter a name.'; $('msg').className = 'message err'; return; }
+  s.name = name;
+  saveSettings(s);
+  $('msg').textContent = 'Saved!';
+  $('msg').className = 'message ok';
+};
+paint();
+</script>
+</body>
+</html>
