@@ -255,6 +255,7 @@ function createBoardUI(container, opts) {
   const rng = Math.random;
 
   container.classList.add('board');
+  container.classList.toggle('disabled', !enabled);
   container.dataset.size = size;
   container.innerHTML = '';
   const tileEls = tiles.map((t, i) => {

@@ -4,7 +4,7 @@
 // Phones re-fetch this file whenever the app is opened online; a changed
 // version triggers a background download of everything in PRECACHE, and the
 // menu page shows an "Update ready" banner to switch over.
-const CACHE = 'games-v8';
+const CACHE = 'games-v9';
 
 const PRECACHE = [
   './',
