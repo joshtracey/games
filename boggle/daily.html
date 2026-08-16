@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Boggle — Daily Puzzle</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <h1>Daily Puzzle</h1>
+    <a class="back" href="index.html">← Boggle</a>
+  </div>
+  <div class="sub" id="date-sub">The same 4×4 board for the whole family — 5 minutes</div>
+
+  <div class="panel" id="setup">
+    <div class="message" id="setup-msg" style="margin-bottom:10px"></div>
+    <button class="btn wide" id="start">Play today's puzzle</button>
+  </div>
+
+  <div class="panel" id="game" style="display:none">
+    <div class="row" style="justify-content:space-between">
+      <div class="timer" id="timer">5:00</div>
+      <div class="lbl">Score: <b id="score" style="color:var(--gold);font-size:1.2rem">0</b></div>
+    </div>
+    <div id="board" class="board"></div>
+    <div class="wordbar">
+      <div class="current" id="current">&nbsp;</div>
+      <button class="btn" id="submit">✓</button>
+      <button class="btn ghost" id="clear">✕</button>
+    </div>
+    <div class="message" id="msg">Swipe or tap tiles to build a word.</div>
+    <div class="words" id="words"></div>
+  </div>
+
+  <div class="panel" id="done" style="display:none">
+    <h2 class="center" style="margin:4px 0">Final score: <span id="final" style="color:var(--gold)"></span></h2>
+    <div class="message" id="done-msg"></div>
+    <button class="btn wide ghost" id="again">Try today's board again</button>
+  </div>
+
+  <div class="panel">
+    <div class="tabs">
+      <button class="tab active" data-tab="mine">My history</button>
+      <button class="tab" data-tab="today">Today</button>
+      <button class="tab" data-tab="alltime">All-time</button>
+    </div>
+    <div id="lb"><div class="message">Loading…</div></div>
+  </div>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="words.js"></script>
+<script src="core.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+'use strict';
+const GAME_SECONDS = 300;
+const SIZE = 4;
+const $ = (id) => document.getElementById(id);
+const name = ensurePlayerName();
+const fb = fbBoot();
+
+// The puzzle date is fixed in Atlantic time so the whole family — wherever
+// they are — flips to the new board at the same moment.
+let playDate = hfxDateString();
+let board = null, boardUI = null;
+let found = new Map();
+let score = 0;
+let playing = false;
+let lbTab = 'mine';
+
+function dailyBoard(date) {
+  return generateBoard(SIZE, mulberry32(hashSeed('boggle-daily-' + date)));
+}
+
+$('date-sub').textContent = `Puzzle for ${playDate} — same 4×4 board for everyone, 5 minutes`;
+$('setup-msg').textContent = `Everyone gets the identical board. Your best score for the day counts.`;
+
+$('start').onclick = startGame;
+$('again').onclick = () => { $('done').style.display = 'none'; startGame(); };
+$('submit').onclick = () => boardUI && boardUI.submitCurrent();
+$('clear').onclick = () => boardUI && boardUI.clearPath();
+
+const countdown = createCountdown(
+  (sec) => {
+    $('timer').textContent = fmtTime(sec);
+    $('timer').classList.toggle('urgent', sec <= 15);
+  },
+  endGame
+);
+
+function startGame() {
+  playDate = hfxDateString(); // capture actual play date for offline sync
+  board = dailyBoard(playDate);
+  found = new Map();
+  score = 0;
+  playing = true;
+  $('score').textContent = '0';
+  $('words').innerHTML = '';
+  $('msg').textContent = 'Minimum 3 letters. Go!';
+  $('msg').className = 'message';
+  $('setup').style.display = 'none';
+  $('done').style.display = 'none';
+  $('game').style.display = '';
+  boardUI = createBoardUI($('board'), {
+    size: SIZE, tiles: board, rotated: false,
+    onPathChange: (w) => { $('current').textContent = w ? w.toUpperCase() : ' '; },
+    onSubmit: submitWord,
+  });
+  countdown.start(GAME_SECONDS * 1000);
+}
+
+function submitWord(word) {
+  if (!playing) return;
+  const show = word.toUpperCase();
+  if (found.has(word)) return setMsg(`${show} — already found`, 'err');
+  const res = checkWord(word, board, SIZE);
+  if (!res.ok) return setMsg(`${show} — ${res.reason}`, 'err');
+  found.set(word, res.score);
+  score += res.score;
+  $('score').textContent = score;
+  setMsg(`${show} +${res.score}`, 'ok');
+  const chip = document.createElement('span');
+  chip.className = 'word-chip';
+  chip.innerHTML = `${show}<span class="pts">+${res.score}</span>`;
+  $('words').prepend(chip);
+}
+
+function setMsg(text, cls) {
+  $('msg').textContent = text;
+  $('msg').className = 'message ' + (cls || '');
+}
+
+function endGame() {
+  playing = false;
+  boardUI.setEnabled(false);
+  $('final').textContent = score;
+  $('done-msg').textContent = `${found.size} word${found.size === 1 ? '' : 's'} found on ${playDate}`;
+  $('done').style.display = '';
+  recordScore(score);
+}
+
+/* ---- local history mirror (offline display) ---- */
+const HIST_KEY = 'boggle-daily-history';
+function localHistory() {
+  try { return JSON.parse(localStorage.getItem(HIST_KEY)) || {}; } catch (e) { return {}; }
+}
+function bumpLocalHistory(date, s) {
+  const h = localHistory();
+  if (!(h[date] >= s)) h[date] = s;
+  localStorage.setItem(HIST_KEY, JSON.stringify(h));
+}
+
+async function recordScore(s) {
+  bumpLocalHistory(playDate, s);
+  // Queued with the date the game was PLAYED, so a score set offline on
+  // Tuesday still lands on Tuesday's leaderboard when it syncs Thursday.
+  const entry = { mode: 'daily', date: playDate, name, score: s, at: Date.now() };
+  if (fb) {
+    try {
+      const u = await fb.authReady;
+      if (u) {
+        await fbSubmitDaily(fb.db, entry);
+        loadLeaderboard();
+        return;
+      }
+    } catch (e) {}
+  }
+  BoggleQueue.push(entry);
+  loadLeaderboard();
+}
+
+/* ---- leaderboards ---- */
+document.querySelectorAll('.tab').forEach((t) => {
+  t.onclick = () => {
+    lbTab = t.dataset.tab;
+    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
+    loadLeaderboard();
+  };
+});
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function loadLeaderboard() {
+  const el = $('lb');
+  const today = hfxDateString();
+
+  if (lbTab === 'mine') {
+    const hist = localHistory();
+    if (fb) {
+      try {
+        await fb.authReady;
+        const snap = await fb.db.ref(`boggle/daily/history/${nameKey(name)}`).once('value');
+        const remote = snap.val() || {};
+        for (const [d, v] of Object.entries(remote)) if (!(hist[d] >= v)) hist[d] = v;
+      } catch (e) {}
+    }
+    const dates = Object.keys(hist).sort().reverse();
+    if (!dates.length) { el.innerHTML = '<div class="message">No games yet — play today’s puzzle!</div>'; return; }
+    const best = Math.max(...Object.values(hist));
+    el.innerHTML =
+      `<div class="message" style="margin-bottom:8px">Best ever: <b style="color:var(--gold)">${best}</b></div>` +
+      `<table class="board-list"><tr><th>Day</th><th class="num">Score</th></tr>` +
+      dates.slice(0, 30).map((d) => `<tr${d === today ? ' class="me"' : ''}><td>${d}</td><td class="num">${hist[d]}</td></tr>`).join('') +
+      `</table>`;
+    return;
+  }
+
+  if (!fb) { el.innerHTML = '<div class="message">This tab needs a connection.</div>'; return; }
+  el.innerHTML = '<div class="message">Loading…</div>';
+  try {
+    await fb.authReady;
+    if (lbTab === 'today') {
+      const snap = await fb.db.ref(`boggle/daily/days/${today}`).orderByChild('score').limitToLast(50).once('value');
+      const rows = [];
+      snap.forEach((c) => { rows.push(c.val()); });
+      rows.sort((a, b) => b.score - a.score);
+      if (!rows.length) { el.innerHTML = '<div class="message">No scores yet today — be first!</div>'; return; }
+      el.innerHTML = `<table class="board-list"><tr><th>#</th><th>Player</th><th class="num">${today}</th></tr>` +
+        rows.map((r, i) => `<tr${nameKey(r.name) === nameKey(name) ? ' class="me"' : ''}><td>${i + 1}</td><td>${escapeHtml(r.name)}</td><td class="num">${r.score}</td></tr>`).join('') +
+        `</table>`;
+    } else {
+      const snap = await fb.db.ref('boggle/daily/best').orderByChild('score').limitToLast(50).once('value');
+      const rows = [];
+      snap.forEach((c) => { rows.push(c.val()); });
+      rows.sort((a, b) => b.score - a.score);
+      if (!rows.length) { el.innerHTML = '<div class="message">No scores yet.</div>'; return; }
+      el.innerHTML = `<table class="board-list"><tr><th>#</th><th>Player</th><th class="num">Best</th><th>Day</th></tr>` +
+        rows.map((r, i) => `<tr${nameKey(r.name) === nameKey(name) ? ' class="me"' : ''}><td>${i + 1}</td><td>${escapeHtml(r.name)}</td><td class="num">${r.score}</td><td>${r.date}</td></tr>`).join('') +
+        `</table>`;
+    }
+  } catch (e) {
+    el.innerHTML = '<div class="message">Couldn’t load scores.</div>';
+  }
+}
+
+loadLeaderboard();
+</script>
+</body>
+</html>

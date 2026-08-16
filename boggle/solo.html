@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Boggle — Solo</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <h1>Solo</h1>
+    <a class="back" href="index.html">← Boggle</a>
+  </div>
+  <div class="sub">3 minutes — find every word you can</div>
+
+  <div class="panel" id="setup">
+    <div class="row">
+      <span class="lbl">Board:</span>
+      <button class="seg" id="size4">4×4</button>
+      <button class="seg" id="size5">5×5</button>
+    </div>
+    <button class="btn wide" id="start">Start game</button>
+  </div>
+
+  <div class="panel" id="game" style="display:none">
+    <div class="row" style="justify-content:space-between">
+      <div class="timer" id="timer">3:00</div>
+      <div class="lbl">Score: <b id="score" style="color:var(--gold);font-size:1.2rem">0</b></div>
+    </div>
+    <div id="board" class="board"></div>
+    <div class="wordbar">
+      <div class="current" id="current">&nbsp;</div>
+      <button class="btn" id="submit">✓</button>
+      <button class="btn ghost" id="clear">✕</button>
+    </div>
+    <div class="message" id="msg">Swipe or tap tiles to build a word.</div>
+    <div class="words" id="words"></div>
+  </div>
+
+  <div class="panel" id="done" style="display:none">
+    <h2 class="center" style="margin:4px 0">Final score: <span id="final" style="color:var(--gold)"></span></h2>
+    <div class="message" id="done-msg"></div>
+    <button class="btn wide" id="again">Play again</button>
+  </div>
+
+  <div class="panel">
+    <div class="tabs">
+      <button class="tab active" id="tab-mine">My best</button>
+      <button class="tab" id="tab-global">Global</button>
+    </div>
+    <div id="lb"><div class="message">Loading…</div></div>
+  </div>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="words.js"></script>
+<script src="core.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+'use strict';
+const GAME_SECONDS = 180;
+const $ = (id) => document.getElementById(id);
+const name = ensurePlayerName();
+const fb = fbBoot();
+
+let size = getSettings().size;
+let board = null, boardUI = null;
+let found = new Map(); // word -> points
+let score = 0;
+let playing = false;
+let lbTab = 'mine';
+
+/* ---- local best mirror so "My best" works offline ---- */
+function localBestKey(sz) { return `boggle-solo-best-${sz}`; }
+function localBest(sz) {
+  const v = Number(localStorage.getItem(localBestKey(sz)));
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+function bumpLocalBest(sz, s) {
+  if (!localBest(sz) || s > localBest(sz)) localStorage.setItem(localBestKey(sz), String(s));
+}
+
+/* ---- game flow ---- */
+function paintSize() {
+  $('size4').classList.toggle('active', size === 4);
+  $('size5').classList.toggle('active', size === 5);
+}
+$('size4').onclick = () => { size = 4; paintSize(); loadLeaderboard(); };
+$('size5').onclick = () => { size = 5; paintSize(); loadLeaderboard(); };
+$('start').onclick = startGame;
+$('again').onclick = () => { $('done').style.display = 'none'; $('setup').style.display = ''; };
+$('submit').onclick = () => boardUI && boardUI.submitCurrent();
+$('clear').onclick = () => boardUI && boardUI.clearPath();
+
+const countdown = createCountdown(
+  (sec) => {
+    $('timer').textContent = fmtTime(sec);
+    $('timer').classList.toggle('urgent', sec <= 10);
+  },
+  endGame
+);
+
+function startGame() {
+  saveSettings({ size });
+  board = generateBoard(size);
+  found = new Map();
+  score = 0;
+  playing = true;
+  $('score').textContent = '0';
+  $('words').innerHTML = '';
+  $('msg').textContent = `Minimum ${minWordLength(size)} letters. Go!`;
+  $('msg').className = 'message';
+  $('setup').style.display = 'none';
+  $('done').style.display = 'none';
+  $('game').style.display = '';
+  boardUI = createBoardUI($('board'), {
+    size, tiles: board, rotated: false,
+    onPathChange: (w) => { $('current').textContent = w ? w.toUpperCase() : ' '; },
+    onSubmit: submitWord,
+  });
+  countdown.start(GAME_SECONDS * 1000);
+}
+
+function submitWord(word) {
+  if (!playing) return;
+  const show = word.toUpperCase();
+  if (found.has(word)) return setMsg(`${show} — already found`, 'err');
+  const res = checkWord(word, board, size);
+  if (!res.ok) return setMsg(`${show} — ${res.reason}`, 'err');
+  found.set(word, res.score);
+  score += res.score;
+  $('score').textContent = score;
+  setMsg(`${show} +${res.score}`, 'ok');
+  const chip = document.createElement('span');
+  chip.className = 'word-chip';
+  chip.innerHTML = `${show}<span class="pts">+${res.score}</span>`;
+  $('words').prepend(chip);
+}
+
+function setMsg(text, cls) {
+  $('msg').textContent = text;
+  $('msg').className = 'message ' + (cls || '');
+}
+
+function endGame() {
+  playing = false;
+  boardUI.setEnabled(false);
+  $('final').textContent = score;
+  $('done-msg').textContent = `${found.size} word${found.size === 1 ? '' : 's'} on the ${size}×${size} board`;
+  $('done').style.display = '';
+  recordScore(score);
+}
+
+/* ---- score recording ---- */
+async function recordScore(s) {
+  bumpLocalBest(size, s);
+  const entry = { mode: 'solo', size, name, score: s, at: Date.now() };
+  if (fb) {
+    try {
+      const u = await fb.authReady;
+      if (u) {
+        await fbSubmitSolo(fb.db, entry);
+        loadLeaderboard();
+        return;
+      }
+    } catch (e) {}
+  }
+  BoggleQueue.push(entry); // synced silently by fbBoot's online listener
+  loadLeaderboard();
+}
+
+/* ---- leaderboard ---- */
+$('tab-mine').onclick = () => setTab('mine');
+$('tab-global').onclick = () => setTab('global');
+function setTab(t) {
+  lbTab = t;
+  $('tab-mine').classList.toggle('active', t === 'mine');
+  $('tab-global').classList.toggle('active', t === 'global');
+  loadLeaderboard();
+}
+
+async function loadLeaderboard() {
+  const el = $('lb');
+  if (lbTab === 'mine') {
+    let rows = [4, 5].map((sz) => ({ sz, best: localBest(sz) }));
+    if (fb) {
+      try {
+        await fb.authReady;
+        for (const r of rows) {
+          const snap = await fb.db.ref(`boggle/solo/s${r.sz}/${nameKey(name)}`).once('value');
+          const v = snap.val();
+          if (v && (!r.best || v.score > r.best)) r.best = v.score;
+        }
+      } catch (e) {}
+    }
+    el.innerHTML = `<table class="board-list"><tr><th>Board</th><th class="num">Your best</th></tr>` +
+      rows.map((r) => `<tr${r.sz === size ? ' class="me"' : ''}><td>${r.sz}×${r.sz}</td><td class="num">${r.best == null ? '—' : r.best}</td></tr>`).join('') +
+      `</table>`;
+    return;
+  }
+  // Global, for the selected size
+  if (!fb) { el.innerHTML = '<div class="message">Global scores need a connection.</div>'; return; }
+  el.innerHTML = '<div class="message">Loading…</div>';
+  try {
+    await fb.authReady;
+    const snap = await fb.db.ref(`boggle/solo/s${size}`).orderByChild('score').limitToLast(50).once('value');
+    const rows = [];
+    snap.forEach((c) => { rows.push(c.val()); });
+    rows.sort((a, b) => b.score - a.score);
+    if (!rows.length) { el.innerHTML = `<div class="message">No ${size}×${size} scores yet — set the first!</div>`; return; }
+    el.innerHTML = `<table class="board-list"><tr><th>#</th><th>Player</th><th class="num">Best (${size}×${size})</th></tr>` +
+      rows.map((r, i) => `<tr${nameKey(r.name) === nameKey(name) ? ' class="me"' : ''}><td>${i + 1}</td><td>${escapeHtml(r.name)}</td><td class="num">${r.score}</td></tr>`).join('') +
+      `</table>`;
+  } catch (e) {
+    el.innerHTML = '<div class="message">Couldn’t load scores.</div>';
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+paintSize();
+loadLeaderboard();
+</script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Boggle</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <h1>Boggle</h1>
+    <a class="back" href="../">← All games</a>
+  </div>
+  <div class="sub">Find words on the grid — five ways to play</div>
+
+  <nav class="menu">
+    <a href="classic.html">
+      <div class="icon">🎲</div>
+      <div><div class="m-name">Classic</div><div class="m-desc">Phone flat on the table, rotated letters, score on paper</div></div>
+    </a>
+    <a href="tv.html">
+      <div class="icon">📺</div>
+      <div><div class="m-name">TV Screen</div><div class="m-desc">Big upright board for casting to a shared screen</div></div>
+    </a>
+    <a href="solo.html">
+      <div class="icon">🏆</div>
+      <div><div class="m-name">Solo</div><div class="m-desc">3-minute solo game with personal &amp; global leaderboards</div></div>
+    </a>
+    <a href="daily.html">
+      <div class="icon">📅</div>
+      <div><div class="m-name">Daily Puzzle</div><div class="m-desc">Same board for everyone each day — 5 minutes, one shot</div></div>
+    </a>
+    <a href="multi.html">
+      <div class="icon">⚔️</div>
+      <div><div class="m-name">Multiplayer</div><div class="m-desc">Live rooms with a 3-letter code — shared words cancel out</div></div>
+    </a>
+    <a href="settings.html">
+      <div class="icon">⚙️</div>
+      <div><div class="m-name">Settings</div><div class="m-desc" id="settings-desc">Name, board size, input method</div></div>
+    </a>
+  </nav>
+</main>
+<script src="core.js"></script>
+<script>
+  const s = getSettings();
+  if (s.name) {
+    document.getElementById('settings-desc').textContent =
+      `${s.name} · ${s.size}×${s.size} · ${s.input === 'select' ? 'Select' : 'Drag'}`;
+  }
+</script>
+</body>
+</html>

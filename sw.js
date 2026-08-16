@@ -4,7 +4,7 @@
 // Phones re-fetch this file whenever the app is opened online; a changed
 // version triggers a background download of everything in PRECACHE, and the
 // menu page shows an "Update ready" banner to switch over.
-const CACHE = 'games-v5';
+const CACHE = 'games-v6';
 
 const PRECACHE = [
   './',
@@ -18,6 +18,17 @@ const PRECACHE = [
   './9menmorris/',
   './backgammon/',
   './blokus/',
+  './boggle/',
+  './boggle/settings.html',
+  './boggle/classic.html',
+  './boggle/tv.html',
+  './boggle/solo.html',
+  './boggle/daily.html',
+  './boggle/multi.html',
+  './boggle/style.css',
+  './boggle/core.js',
+  './boggle/words.js',
+  './boggle/firebase-config.js',
   './character-sheet/',
   './chess/',
   './crafting-puzzle/',
@@ -72,7 +83,8 @@ self.addEventListener('fetch', (e) => {
         const cacheable = resp.ok || resp.type === 'opaque';
         const wanted = url.origin === location.origin ||
           url.hostname.endsWith('fonts.googleapis.com') ||
-          url.hostname.endsWith('fonts.gstatic.com');
+          url.hostname.endsWith('fonts.gstatic.com') ||
+          url.hostname === 'www.gstatic.com'; // Firebase SDK for Boggle
         if (cacheable && wanted) {
           const copy = resp.clone();
           caches.open(CACHE).then((c) => c.put(e.request, copy));

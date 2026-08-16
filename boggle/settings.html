@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Boggle — Settings</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <h1>Settings</h1>
+    <a class="back" href="index.html">← Boggle</a>
+  </div>
+  <div class="sub">Saved on this device</div>
+
+  <div class="panel">
+    <div class="lbl" style="margin-bottom:6px">Player name (shown on leaderboards)</div>
+    <input class="text" id="name" maxlength="24" placeholder="e.g. Theo, Gus, Grammy" autocomplete="off" />
+    <div class="spacer"></div>
+
+    <div class="row">
+      <span class="lbl">Preferred board size:</span>
+      <button class="seg" id="size4">4×4</button>
+      <button class="seg" id="size5">5×5</button>
+    </div>
+
+    <div class="row">
+      <span class="lbl">Preferred input:</span>
+      <button class="seg" id="inp-drag">Drag</button>
+      <button class="seg" id="inp-select">Select</button>
+    </div>
+    <div class="lbl" style="margin-bottom:12px">
+      Both always work in-game: swipe across tiles to drag, or tap tiles one by
+      one and tap the last tile again to remove it.
+    </div>
+
+    <button class="btn wide" id="save">Save</button>
+    <div class="message" id="msg"></div>
+  </div>
+</main>
+<script src="core.js"></script>
+<script>
+'use strict';
+let s = getSettings();
+const $ = (id) => document.getElementById(id);
+
+function paint() {
+  $('name').value = s.name;
+  $('size4').classList.toggle('active', s.size === 4);
+  $('size5').classList.toggle('active', s.size === 5);
+  $('inp-drag').classList.toggle('active', s.input === 'drag');
+  $('inp-select').classList.toggle('active', s.input === 'select');
+}
+$('size4').onclick = () => { s.size = 4; paint(); };
+$('size5').onclick = () => { s.size = 5; paint(); };
+$('inp-drag').onclick = () => { s.input = 'drag'; paint(); };
+$('inp-select').onclick = () => { s.input = 'select'; paint(); };
+$('save').onclick = () => {
+  const name = $('name').value.trim().slice(0, 24);
+  if (!name) { $('msg').textContent = 'Please enter a name.'; $('msg').className = 'message err'; return; }
+  s.name = name;
+  saveSettings(s);
+  $('msg').textContent = 'Saved!';
+  $('msg').className = 'message ok';
+};
+paint();
+</script>
+</body>
+</html>
