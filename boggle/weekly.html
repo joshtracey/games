@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Boggle — Words of the Week</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Mode-specific bits; everything else comes from style.css. */
+    .defcard {
+      border-radius: 12px; padding: 12px 14px; margin: 4px 0 10px;
+      background: rgba(147,197,253,.1); border: 1px solid rgba(147,197,253,.35);
+    }
+    .defcard .deflabel {
+      font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--accent);
+    }
+    .defcard .deftext { font-size: 1.05rem; line-height: 1.35; margin-top: 4px; }
+    .defcard.shake { animation: shake .4s; }
+    @keyframes shake {
+      20% { transform: translateX(-7px); } 40% { transform: translateX(7px); }
+      60% { transform: translateX(-4px); } 80% { transform: translateX(4px); }
+    }
+    .penalty { color: var(--err); font-size: .85rem; font-variant-numeric: tabular-nums; }
+    .check-list { display: grid; gap: 6px; margin-top: 12px; }
+    .check-row {
+      display: flex; gap: 10px; align-items: baseline; padding: 8px 10px; border-radius: 10px;
+      font-size: .85rem; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+    }
+    .check-row .box { flex-shrink: 0; color: var(--muted); }
+    .check-row .w { color: var(--muted); letter-spacing: .05em; }
+    .check-row .d { color: var(--muted); font-size: .78rem; }
+    .check-row.now { border-color: rgba(147,197,253,.5); background: rgba(147,197,253,.08); }
+    .check-row.done { border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.08); }
+    .check-row.done .box { color: var(--ok); }
+    .check-row.done .w { color: var(--text); font-weight: 700; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <h1>Words of the Week</h1>
+    <a class="back" href="index.html">← Boggle</a>
+  </div>
+  <div class="sub" id="sub">Loading this week's words…</div>
+
+  <div class="panel" id="setup">
+    <div class="message" id="setup-msg" style="margin-bottom:10px">Loading…</div>
+    <button class="btn wide" id="start" disabled>Start</button>
+  </div>
+
+  <div class="panel" id="game" style="display:none">
+    <div class="row" style="justify-content:space-between">
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <div class="timer" id="timer">0:00</div>
+        <div class="penalty" id="penalty" style="display:none"></div>
+      </div>
+      <div class="lbl">Found: <b id="progress" style="color:var(--gold);font-size:1.2rem">0 / 0</b></div>
+    </div>
+
+    <div class="defcard" id="defcard">
+      <div class="deflabel">Spell this word</div>
+      <div class="deftext" id="def">&nbsp;</div>
+    </div>
+
+    <div id="board" class="board"></div>
+    <div class="wordbar">
+      <div class="current" id="current">&nbsp;</div>
+      <button class="btn" id="submit">✓</button>
+      <button class="btn ghost" id="clear">✕</button>
+    </div>
+    <div class="message" id="msg">Swipe or tap tiles to spell the word.</div>
+    <div class="check-list" id="checklist"></div>
+  </div>
+
+  <div class="panel" id="done" style="display:none">
+    <h2 class="center" style="margin:4px 0">All found in <span id="final" style="color:var(--gold)"></span></h2>
+    <div class="message" id="done-msg"></div>
+    <div class="spacer"></div>
+    <button class="btn wide ghost" id="again">Play again — new board</button>
+  </div>
+
+  <div class="panel">
+    <div class="tabs">
+      <button class="tab active" data-tab="week">This week</button>
+      <button class="tab" data-tab="days">Day by day</button>
+    </div>
+    <div id="lb"><div class="message">Loading…</div></div>
+  </div>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="words.js"></script>
+<script src="core.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+'use strict';
+const SIZE = 5;
+const PENALTY = 5;          // seconds added per completed wrong word
+const $ = (id) => document.getElementById(id);
+const name = ensurePlayerName();
+const fb = fbBoot();
+
+let weekId = null;          // week identifier from weekly-words.json
+let entries = [];           // [{ word, definition }]
+let targetSet = new Set();  // every word in this week's list
+let order = [];             // this session's shuffled definition order
+let cursor = 0;             // which definition is on screen
+let board = null, boardUI = null;
+let found = new Set();
+let errors = 0;
+let startedAt = 0, tickInt = null, playing = false;
+let lbTab = 'week';
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// The one result format used everywhere: "1:52 (2 errors, 2:02 adjusted)".
+function fmtResult(rawTime, errs, adjusted) {
+  if (!errs) return fmtTime(rawTime);
+  return `${fmtTime(rawTime)} (${errs} error${errs === 1 ? '' : 's'}, ${fmtTime(adjusted)} adjusted)`;
+}
+
+/* ---- this week's list ---- */
+(async function boot() {
+  try {
+    const res = await fetch('weekly-words.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    weekId = String(data.week || hfxDateString());
+    const seen = new Set();
+    entries = (data.words || [])
+      .map((e) => ({
+        word: String(e && e.word || '').toLowerCase().replace(/[^a-z]/g, ''),
+        definition: String(e && e.definition || '').trim(),
+      }))
+      .filter((e) => {
+        if (!e.word || !e.definition || seen.has(e.word)) return false;
+        seen.add(e.word);
+        return true;
+      });
+    if (!entries.length) throw new Error('no usable words in the list');
+    targetSet = seen;
+    $('sub').textContent = `Week of ${weekId} — ${entries.length} words to spell`;
+    $('setup-msg').textContent =
+      `Read each clue and trace that exact spelling on the board. Every word is on there. ` +
+      `Each completed wrong word costs 5 seconds.`;
+    $('start').disabled = false;
+    loadLeaderboard();
+  } catch (e) {
+    $('sub').textContent = 'Words of the Week';
+    $('setup-msg').textContent = `Couldn't load weekly-words.json (${e.message}).`;
+  }
+})();
+
+$('start').onclick = startGame;
+$('again').onclick = startGame;
+$('submit').onclick = () => boardUI && boardUI.submitCurrent();
+$('clear').onclick = () => boardUI && boardUI.clearPath();
+
+/* ---- game flow ---- */
+
+// createBoardUI binds its pointer handlers to the container, so each round gets
+// a fresh element rather than a second set of handlers on the old one.
+function freshBoardEl() {
+  const old = $('board');
+  const el = document.createElement('div');
+  el.id = 'board';
+  old.replaceWith(el);
+  return el;
+}
+
+function startGame() {
+  let built;
+  try {
+    built = generatePlantedBoard(entries.map((e) => e.word), SIZE);
+  } catch (err) {
+    $('setup-msg').textContent = `Couldn't build a board: ${err.message}`;
+    $('setup').style.display = '';
+    $('game').style.display = 'none';
+    return;
+  }
+  board = built.tiles;
+  order = shuffle(entries);
+  cursor = 0;
+  found = new Set();
+  errors = 0;
+  playing = true;
+  $('setup').style.display = 'none';
+  $('done').style.display = 'none';
+  $('game').style.display = '';
+  $('msg').textContent = 'Swipe or tap tiles to spell the word.';
+  $('msg').className = 'message';
+  $('current').textContent = ' ';
+  renderChecklist();
+  showDefinition();
+  boardUI = createBoardUI(freshBoardEl(), {
+    size: SIZE, tiles: board, rotated: false,
+    onPathChange: (w) => { $('current').textContent = w ? w.toUpperCase() : ' '; },
+    onSubmit: submitWord,
+  });
+  startClock();
+}
+
+function showDefinition() {
+  $('def').textContent = order[cursor].definition;
+  $('progress').textContent = `${found.size} / ${order.length}`;
+  renderChecklist();
+}
+
+// One row per word in the session's order. Unfound rows stay blank — showing
+// the spelling (or even the length) would give away the thing being tested.
+function renderChecklist() {
+  $('checklist').innerHTML = order.map((e, i) => {
+    const done = found.has(e.word);
+    const cls = done ? 'done' : (playing && i === cursor ? 'now' : '');
+    const body = done
+      ? `<span class="w">${escapeHtml(e.word.toUpperCase())}</span><span class="d">${escapeHtml(e.definition)}</span>`
+      : `<span class="w">—</span>`;
+    return `<div class="check-row ${cls}"><span class="box">${done ? '☑' : '☐'}</span>${body}</div>`;
+  }).join('');
+}
+
+function submitWord(raw) {
+  if (!playing) return;
+  const w = String(raw).toLowerCase();
+  const target = order[cursor].word;
+  if (w === target) return correct();
+  // A completed word that isn't the one being asked for is an error — whether
+  // it's another of this week's words or a real word the filler letters happen
+  // to spell. Anything else is just a dead-end path, and costs nothing.
+  if (targetSet.has(w)) return wrong('Not this one — try again');
+  if (w.length >= 3 && dict().has(w)) return wrong(`${w.toUpperCase()} — not one of today's words`);
+  setMsg('', '');
+}
+
+function correct() {
+  const e = order[cursor];
+  found.add(e.word);
+  setMsg(`${e.word.toUpperCase()} ✓`, 'ok');
+  if (found.size === order.length) { renderChecklist(); return finish(); }
+  cursor++;
+  showDefinition();
+}
+
+function wrong(text) {
+  errors++;
+  setMsg(text, 'err');
+  const card = $('defcard');
+  card.classList.remove('shake');
+  void card.offsetWidth;
+  card.classList.add('shake');
+  paintClock();
+}
+
+function setMsg(text, cls) {
+  $('msg').textContent = text || ' ';
+  $('msg').className = 'message ' + (cls || '');
+}
+
+/* ---- clock (counts up until every word is found) ---- */
+function rawSec() { return Math.max(0, Math.floor((Date.now() - startedAt) / 1000)); }
+
+function paintClock() {
+  $('timer').textContent = fmtTime(rawSec());
+  $('penalty').textContent = errors ? `+${errors * PENALTY}s` : '';
+  $('penalty').style.display = errors ? '' : 'none';
+}
+
+function startClock() {
+  startedAt = Date.now();
+  clearInterval(tickInt);
+  tickInt = setInterval(paintClock, 200);
+  paintClock();
+}
+
+function finish() {
+  playing = false;
+  clearInterval(tickInt);
+  boardUI.setEnabled(false);
+  const rawTime = rawSec();
+  const adjusted = rawTime + errors * PENALTY;
+  $('progress').textContent = `${found.size} / ${order.length}`;
+  $('final').textContent = fmtTime(adjusted);
+  $('done-msg').textContent = errors
+    ? `${fmtTime(rawTime)} on the clock plus ${errors} error${errors === 1 ? '' : 's'} × 5s`
+    : `${fmtTime(rawTime)} on the clock — no errors!`;
+  $('done').style.display = '';
+  recordResult(rawTime, errors, adjusted);
+}
+
+/* ---- results: local mirror + Firebase ---- */
+const WK_KEY = 'boggle-weekly-best';
+
+function localAll() {
+  try { return JSON.parse(localStorage.getItem(WK_KEY)) || {}; } catch (e) { return {}; }
+}
+
+function bumpLocal(e) {
+  const all = localAll();
+  const wk = all[e.week] || (all[e.week] = { days: {} });
+  if (!wk.days) wk.days = {};
+  if (!(wk.bestTime <= e.bestTime)) {
+    wk.bestTime = e.bestTime; wk.rawTime = e.rawTime;
+    wk.errors = e.errors; wk.completedAt = e.completedAt;
+  }
+  const day = wk.days[e.date];
+  if (!day || e.bestTime < day.bestTime) {
+    wk.days[e.date] = { bestTime: e.bestTime, rawTime: e.rawTime, errors: e.errors };
+  }
+  localStorage.setItem(WK_KEY, JSON.stringify(all));
+}
+
+async function recordResult(rawTime, errs, adjusted) {
+  // Stamped with the week it belongs to and the day it was played, so a run
+  // finished offline still lands on the right list when it syncs later.
+  const entry = {
+    mode: 'weekly', week: weekId, date: hfxDateString(), name,
+    bestTime: adjusted, rawTime, errors: errs, completedAt: Date.now(),
+  };
+  bumpLocal(entry);
+  if (fb) {
+    try {
+      const u = await fb.authReady;
+      if (u) {
+        await fbSubmitWeekly(fb.db, entry);
+        loadLeaderboard();
+        return;
+      }
+    } catch (e) {}
+  }
+  BoggleQueue.push(entry); // drained silently by fbBoot's online listener
+  loadLeaderboard();
+}
+
+/* ---- leaderboards ---- */
+document.querySelectorAll('.tab').forEach((t) => {
+  t.onclick = () => {
+    lbTab = t.dataset.tab;
+    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
+    loadLeaderboard();
+  };
+});
+
+// One read of the week node gives both tabs; a week's worth of family results
+// is small enough to sort here.
+async function weekRows() {
+  const byKey = new Map();
+  const mine = localAll()[weekId];
+  if (mine && typeof mine.bestTime === 'number') {
+    byKey.set(nameKey(name), {
+      name, bestTime: mine.bestTime, rawTime: mine.rawTime,
+      errors: mine.errors || 0, days: mine.days || {},
+    });
+  }
+  if (fb) {
+    // Offline or blocked, the local mirror still carries this player's own row.
+    try {
+      await fb.authReady;
+      const snap = await fb.db.ref(`boggle/weekly/${weekId}`).once('value');
+      const remote = snap.val() || {};
+      for (const [key, v] of Object.entries(remote)) {
+        if (!v || typeof v.bestTime !== 'number') continue;
+        const local = byKey.get(key);
+        const days = Object.assign({}, (local && local.days) || {});
+        for (const [d, dv] of Object.entries(v.days || {})) {
+          if (dv && typeof dv.bestTime === 'number' && (!days[d] || dv.bestTime < days[d].bestTime)) days[d] = dv;
+        }
+        // A result that hasn't synced yet can still be the better one.
+        const best = (local && local.bestTime < v.bestTime) ? local : v;
+        byKey.set(key, {
+          name: v.name || (local && local.name) || key,
+          bestTime: best.bestTime, rawTime: best.rawTime, errors: best.errors || 0, days,
+        });
+      }
+    } catch (e) {}
+  }
+  return [...byKey.values()];
+}
+
+async function loadLeaderboard() {
+  const el = $('lb');
+  if (!weekId) return;
+  const rows = await weekRows();
+
+  if (lbTab === 'week') {
+    if (!rows.length) { el.innerHTML = '<div class="message">No times yet this week — set the first!</div>'; return; }
+    rows.sort((a, b) => a.bestTime - b.bestTime);
+    el.innerHTML =
+      `<table class="board-list"><tr><th>#</th><th>Player</th><th>Best (week of ${weekId})</th></tr>` +
+      rows.map((r, i) => `<tr${nameKey(r.name) === nameKey(name) ? ' class="me"' : ''}>` +
+        `<td>${i + 1}</td><td>${escapeHtml(r.name)}</td>` +
+        `<td>${fmtResult(r.rawTime, r.errors, r.bestTime)}</td></tr>`).join('') +
+      `</table>`;
+    return;
+  }
+
+  // Day by day: every player's best run on each day of this week, newest first.
+  const days = [];
+  for (const r of rows) {
+    for (const [d, v] of Object.entries(r.days || {})) {
+      days.push({ date: d, name: r.name, rawTime: v.rawTime, errors: v.errors || 0, bestTime: v.bestTime });
+    }
+  }
+  if (!days.length) { el.innerHTML = '<div class="message">No days played yet this week.</div>'; return; }
+  days.sort((a, b) => (a.date === b.date ? a.bestTime - b.bestTime : (a.date < b.date ? 1 : -1)));
+  el.innerHTML =
+    `<table class="board-list"><tr><th>Day</th><th>Player</th><th>Best that day</th></tr>` +
+    days.map((r, i) => {
+      const newDay = i === 0 || days[i - 1].date !== r.date;
+      return `<tr${nameKey(r.name) === nameKey(name) ? ' class="me"' : ''}>` +
+        `<td>${newDay ? r.date : ''}</td><td>${escapeHtml(r.name)}</td>` +
+        `<td>${fmtResult(r.rawTime, r.errors, r.bestTime)}</td></tr>`;
+    }).join('') +
+    `</table>`;
+}
+</script>
+<script src="../wakelock.js"></script>
+</body>
+</html>

@@ -54,6 +54,104 @@ function tileDisplay(tile) {
   return tile === 'qu' ? 'Qu' : tile.toUpperCase();
 }
 
+/* ---------- Planted boards (Words of the Week) ---------- */
+
+// Builds a board on which every one of `words` is guaranteed findable.
+// Each word is threaded along a random path of adjacent tiles (diagonals
+// included), sharing tiles with words already down wherever the letters agree
+// — without that overlap a homophone set doesn't fit in 25 cells. A word that
+// won't go down after 50 tries condemns the whole layout and we start fresh.
+// Returns { tiles, paths }, where paths maps each word to its tile indices.
+function generatePlantedBoard(words, size, rng) {
+  rng = rng || Math.random;
+  size = size || 5;
+  const cells = size * size;
+  const adj = neighbors(size);
+  const targets = words
+    .map((w) => String(w).toLowerCase().replace(/[^a-z]/g, ''))
+    .filter(Boolean);
+
+  function shuffled(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // One randomized attempt at threading `word` through `board`. A tile can be
+  // taken if it's empty or already holds the letter we need. The node budget
+  // cuts a hopeless search short so the caller's next try explores elsewhere
+  // instead of grinding through the same dead ends.
+  function threadWord(board, word) {
+    const used = new Array(cells).fill(false);
+    const path = [];
+    let budget = 600;
+
+    function step(idx, pos) {
+      if (budget-- <= 0) return false;
+      used[idx] = true;
+      path.push(idx);
+      if (pos + 1 === word.length) return true;
+      const want = word[pos + 1];
+      // Neighbours that already carry the next letter go first: overlapping is
+      // what keeps a long word list inside the grid.
+      const rank = (i) => (used[i] || (board[i] && board[i] !== want) ? -1 : (board[i] ? 2 : 1));
+      const options = shuffled(adj[idx]).sort((a, b) => rank(b) - rank(a));
+      for (const n of options) {
+        if (rank(n) < 0) continue;
+        if (step(n, pos + 1)) return true;
+      }
+      used[idx] = false;
+      path.pop();
+      return false;
+    }
+
+    const starts = shuffled(Array.from({ length: cells }, (_, i) => i))
+      .filter((i) => !board[i] || board[i] === word[0]);
+    for (const s of starts) {
+      if (step(s, 0)) return path.slice();
+      if (budget <= 0) break;
+    }
+    return null;
+  }
+
+  // Gaps are filled mostly from the target words' own letters so stray tiles
+  // blend in rather than advertising themselves; the rest are common letters
+  // (no lone Q, which would read as a missing "u").
+  const FILLER = 'eeeaaariiooottnnsslcudpmhgbfywkv';
+  function fillGaps(board) {
+    const pool = targets.join('');
+    for (let i = 0; i < cells; i++) {
+      if (board[i]) continue;
+      board[i] = (pool && rng() < 0.75)
+        ? pool[Math.floor(rng() * pool.length)]
+        : FILLER[Math.floor(rng() * FILLER.length)];
+    }
+  }
+
+  for (let layout = 0; layout < 200; layout++) {
+    const board = new Array(cells).fill('');
+    const paths = {};
+    // Longest first — the hardest words go down while the board is emptiest.
+    const order = shuffled(targets).sort((a, b) => b.length - a.length);
+    let placed = true;
+    for (const w of order) {
+      let path = null;
+      for (let attempt = 0; attempt < 50 && !path; attempt++) path = threadWord(board, w);
+      if (!path) { placed = false; break; }
+      path.forEach((idx, i) => { board[idx] = w[i]; });
+      paths[w] = path;
+    }
+    if (!placed) continue;
+    fillGaps(board);
+    // Belt and braces: nothing ships until every word really traces.
+    if (targets.every((w) => wordHasPath(w, board, size))) return { tiles: board, paths };
+  }
+  throw new Error('could not fit these words on a ' + size + '×' + size + ' board');
+}
+
 /* ---------- Dictionary, path validation, scoring ---------- */
 
 let _dict = null;

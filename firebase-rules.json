@@ -42,6 +42,30 @@
           }
         }
       },
+      "weekly": {
+        "$week": {
+          ".read": true,
+          "$name": {
+            ".write": "auth != null",
+            ".validate": "$week.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) && newData.hasChildren(['name', 'bestTime', 'rawTime', 'errors', 'completedAt'])",
+            "name": { ".validate": "newData.isString() && newData.val().length <= 24" },
+            "bestTime": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" },
+            "rawTime": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" },
+            "errors": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 999" },
+            "completedAt": { ".validate": "newData.isNumber()" },
+            "days": {
+              "$date": {
+                ".validate": "$date.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) && newData.hasChildren(['bestTime', 'rawTime', 'errors'])",
+                "bestTime": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" },
+                "rawTime": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 86400" },
+                "errors": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 999" },
+                "$other": { ".validate": false }
+              }
+            },
+            "$other": { ".validate": false }
+          }
+        }
+      },
       "rooms": {
         "$code": {
           ".read": true,

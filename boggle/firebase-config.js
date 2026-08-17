@@ -60,11 +60,35 @@ async function fbSubmitDaily(db, e) {
     { name: e.name, score: e.score, date: e.date });
 }
 
-// Drain the offline queue (solo + daily entries). Safe to call repeatedly.
+// Words of the Week: one record per player per week, holding their best
+// (lowest) adjusted time plus a per-day best, so the day-by-day tab needs no
+// second read. Lists reset cleanly because the week id is part of the path.
+function fbSubmitWeekly(db, e) {
+  return db.ref(`boggle/weekly/${e.week}/${nameKey(e.name)}`).transaction((cur) => {
+    const rec = (cur && typeof cur === 'object') ? cur : {};
+    const days = rec.days || {};
+    const day = days[e.date];
+    if (!day || e.bestTime < day.bestTime) {
+      days[e.date] = { bestTime: e.bestTime, rawTime: e.rawTime, errors: e.errors };
+    }
+    if (typeof rec.bestTime !== 'number' || e.bestTime < rec.bestTime) {
+      return {
+        name: e.name, bestTime: e.bestTime, rawTime: e.rawTime,
+        errors: e.errors, completedAt: e.completedAt, days,
+      };
+    }
+    rec.name = e.name;
+    rec.days = days;
+    return rec;
+  });
+}
+
+// Drain the offline queue (solo + daily + weekly entries). Safe to call repeatedly.
 function fbSyncQueue(db) {
   return BoggleQueue.flush(async (e) => {
     if (e.mode === 'solo') await fbSubmitSolo(db, e);
     else if (e.mode === 'daily') await fbSubmitDaily(db, e);
+    else if (e.mode === 'weekly') await fbSubmitWeekly(db, e);
     return true;
   });
 }

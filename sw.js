@@ -4,7 +4,7 @@
 // Phones re-fetch this file whenever the app is opened online; a changed
 // version triggers a background download of everything in PRECACHE, and the
 // menu page shows an "Update ready" banner to switch over.
-const CACHE = 'games-v10';
+const CACHE = 'games-v11';
 
 const PRECACHE = [
   './',
@@ -25,6 +25,8 @@ const PRECACHE = [
   './boggle/tv.html',
   './boggle/solo.html',
   './boggle/daily.html',
+  './boggle/weekly.html',
+  './boggle/weekly-words.json',
   './boggle/multi.html',
   './boggle/style.css',
   './boggle/core.js',
