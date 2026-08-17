@@ -113,8 +113,9 @@ button.answer-chip { cursor: pointer; }
 .answer-chip .n { color: var(--muted); font-size: .72rem; flex: 0 0 1.2em; font-variant-numeric: tabular-nums; }
 .answer-chip .a { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .answer-chip .why { font-size: .68rem; color: var(--muted); }
+/* One point per word starting with the letter, so the badge is per-answer. */
+.answer-chip .pts { color: var(--gold); font-size: .75rem; font-variant-numeric: tabular-nums; }
 .answer-chip.unique { border-color: rgba(74,222,128,.4); background: rgba(74,222,128,.08); }
-.answer-chip.unique .a::after { content: ' +1'; color: var(--gold); font-size: .75rem; }
 .answer-chip.duplicate, .answer-chip.vetoed { opacity: .45; }
 .answer-chip.duplicate .a, .answer-chip.vetoed .a { text-decoration: line-through; }
 .answer-chip.invalid { border-color: rgba(248,113,113,.3); background: rgba(248,113,113,.07); }

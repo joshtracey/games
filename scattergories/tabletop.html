@@ -67,7 +67,7 @@
     <h2 style="margin:4px 0 4px" class="center">Round <span id="round-num"></span> — letter <span id="res-letter" style="color:var(--accent)"></span></h2>
     <div class="message" id="veto-hint" style="margin-bottom:10px"></div>
     <div class="results-grid" id="results"></div>
-    <div class="message" style="margin-top:10px">Struck-through answers were said by more than one player, or ruled out by the table.</div>
+    <div class="message" style="margin-top:10px">A point per word starting with the letter — "Macho Man" is worth 2. Struck-through answers were said by more than one player, or ruled out by the table.</div>
     <div class="spacer"></div>
     <div id="results-host" style="display:none"><button class="btn wide" id="again">Back to lobby</button></div>
     <div class="message" id="results-wait"></div>
@@ -360,12 +360,13 @@ function showResults(isHost) {
         const tag = isHost && cell.state !== 'blank' ? 'button' : 'div';
         const why = cell.state === 'unique' || cell.state === 'blank'
           ? '' : `<span class="why">${escapeHtml(cell.reason || '')}</span>`;
+        const pts = cell.points > 0 ? `<span class="pts">+${cell.points}</span>` : '';
         const text = cell.state === 'blank'
           ? `<span class="a">${escapeHtml(categories[i])} — blank</span>`
           : `<span class="a">${escapeHtml(cell.answer)}</span>`;
         return `<${tag} class="answer-chip ${cell.state}"` +
                (tag === 'button' ? ` data-pid="${pid}" data-idx="${i}"` : '') +
-               `><span class="n">${i + 1}</span>${text}${why}</${tag}>`;
+               `><span class="n">${i + 1}</span>${text}${pts}${why}</${tag}>`;
       }).join('');
       return `<div class="result-col"><h3>${escapeHtml(players[pid].name)} — <span class="total">${total}</span></h3>` +
              `<div class="answer-list">${list}</div></div>`;

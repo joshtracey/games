@@ -89,11 +89,30 @@ function checkAnswer(answer, letter) {
   return { ok: true };
 }
 
+// Printed rules: one point per word in the answer that starts with the key
+// letter, so on M "Macho Man" is worth 2 and "Mickey Mouse Movie" 3. A leading
+// article was already dropped by stripArticle, and hyphens split words the way
+// spaces do ("Mud-Munching Monster" = 3). House rule on top of the printed
+// ones: a repeated word only scores once, so "Massive Massive Monster" is 2,
+// not 3 — padding an answer with the same word shouldn't beat a real one.
+const WORD_SPLIT_RE = /[\s/\-‐-―]+/;
+
+function scoreAnswer(answer, letter) {
+  const target = letter.toLowerCase();
+  const counted = new Set();
+  for (const word of stripArticle(answer).split(WORD_SPLIT_RE)) {
+    const key = normalizeAnswer(word);
+    if (key && key[0] === target) counted.add(key);
+  }
+  return counted.size;
+}
+
 // Score a whole table of answers at once.
 //   sheets: { playerId: { c0: 'answer', c1: '…' } }   (missing keys = blank)
 //   vetoed: { playerId: { c0: true } }  answers the table struck out
-// Returns { byPlayer: { pid: { total, cells: [ {answer, state, reason} ] } } }
-// where state is 'unique' | 'duplicate' | 'invalid' | 'vetoed' | 'blank'.
+// Returns { byPlayer: { pid: { total, scored, cells: [ {answer, state, reason,
+// points} ] } } } where state is 'unique' | 'duplicate' | 'invalid' | 'vetoed'
+// | 'blank'; `total` is points, `scored` is how many answers earned any.
 function scoreRound(sheets, letter, categoryCount, vetoed) {
   vetoed = vetoed || {};
   const pids = Object.keys(sheets);
@@ -115,27 +134,29 @@ function scoreRound(sheets, letter, categoryCount, vetoed) {
   const byPlayer = {};
   for (const pid of pids) {
     const cells = [];
-    let total = 0;
+    let total = 0, scored = 0;
     for (let c = 0; c < categoryCount; c++) {
       const raw = (sheets[pid] || {})['c' + c] || '';
       const key = normalizeAnswer(raw);
       if (vetoed[pid] && vetoed[pid]['c' + c]) {
-        cells.push({ answer: raw, state: 'vetoed', reason: 'struck by the table' });
+        cells.push({ answer: raw, state: 'vetoed', points: 0, reason: 'struck by the table' });
         continue;
       }
       const check = checkAnswer(raw, letter);
       if (!check.ok) {
-        cells.push({ answer: raw, state: key ? 'invalid' : 'blank', reason: check.reason });
+        cells.push({ answer: raw, state: key ? 'invalid' : 'blank', points: 0, reason: check.reason });
         continue;
       }
       if (counts[c][key] > 1) {
-        cells.push({ answer: raw, state: 'duplicate', reason: 'someone else said it too' });
+        cells.push({ answer: raw, state: 'duplicate', points: 0, reason: 'someone else said it too' });
         continue;
       }
-      cells.push({ answer: raw, state: 'unique' });
-      total += 1;
+      const points = scoreAnswer(raw, letter);
+      cells.push({ answer: raw, state: 'unique', points });
+      total += points;
+      scored += 1;
     }
-    byPlayer[pid] = { total, cells };
+    byPlayer[pid] = { total, scored, cells };
   }
   return { byPlayer };
 }

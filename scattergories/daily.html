@@ -65,7 +65,7 @@ let playing = false;
 let lbTab = 'today';
 
 $('date-sub').textContent = `Quiz for ${playDate} — same letter and list for everyone, 3 minutes`;
-$('setup-msg').textContent = 'Answers nobody else gives are worth a point each — so think twice about the obvious one.';
+$('setup-msg').textContent = 'Answers nobody else gives score a point per word starting with the letter — "Macho Man" is worth 2.';
 
 $('start').onclick = startGame;
 
@@ -153,14 +153,15 @@ async function showResult(offlineAnswers) {
   $('final').textContent = res.total;
   setLocalHistory(playDate, res.total);
   $('done-msg').textContent = others > 0
-    ? `${res.total} answer${res.total === 1 ? '' : 's'} nobody else gave, out of ${others + 1} sheet${others ? 's' : ''} so far.`
+    ? `${res.scored} answer${res.scored === 1 ? '' : 's'} nobody else gave, out of ${others + 1} sheet${others ? 's' : ''} so far.`
     : 'You are first today — every valid answer scores until someone matches it.';
   $('my-answers').innerHTML = res.cells.map((cell, i) => {
     const why = cell.state === 'unique' ? '' : `<span class="why">${escapeHtml(cell.reason || '')}</span>`;
+    const pts = cell.points > 0 ? `<span class="pts">+${cell.points}</span>` : '';
     const text = cell.state === 'blank'
       ? `<span class="a">${escapeHtml(sheet.categories[i])} — blank</span>`
       : `<span class="a">${escapeHtml(cell.answer)}</span>`;
-    return `<div class="answer-chip ${cell.state}"><span class="n">${i + 1}</span>${text}${why}</div>`;
+    return `<div class="answer-chip ${cell.state}"><span class="n">${i + 1}</span>${text}${pts}${why}</div>`;
   }).join('');
 }
 
