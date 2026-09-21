@@ -40,6 +40,7 @@
       <button class="btn wide" id="start-round">Start round</button>
     </div>
     <div class="message" id="lobby-msg"></div>
+    <button class="btn wide ghost" id="last-scores" style="display:none">Last round’s scores</button>
     <div class="spacer"></div>
     <button class="btn wide danger" id="leave">Leave room</button>
   </div>
@@ -72,7 +73,7 @@
     <div class="results-grid" id="results"></div>
     <div class="message" style="margin-top:8px">Greyed words were found by more than one player and score nothing.</div>
     <div class="spacer"></div>
-    <div id="results-host" style="display:none"><button class="btn wide" id="again">Back to lobby</button></div>
+    <button class="btn wide" id="again">Back to lobby</button>
     <div class="message" id="results-wait"></div>
     <div class="spacer"></div>
     <button class="btn wide danger" id="leave2">Leave room</button>
@@ -99,6 +100,9 @@ let room = null;              // latest room snapshot value
 let roomRef = null;
 let boardUI = null;
 let boardRound = -1;          // round the current board UI was built for
+let playedRound = -1;         // round this client actually got a board for
+let resultsFor = -1;          // round whose scoreboard is on screen (-1 = none)
+let dismissedRound = -1;      // round whose scoreboard this client has closed
 let myWords = new Map();      // word -> true (this round, local echo)
 let hostSize = getSettings().size;
 let phaseTick = null;
@@ -192,7 +196,8 @@ function leaveRoom() {
   }
   sessionStorage.removeItem('boggle-room');
   clearInterval(phaseTick);
-  roomRef = null; room = null; code = null; boardRound = -1;
+  roomRef = null; room = null; code = null;
+  boardRound = playedRound = resultsFor = dismissedRound = -1;
   show('v-entry');
   setMsg('entry-msg', '');
 }
@@ -224,7 +229,19 @@ $('start-round').onclick = () => {
     words: null,
   });
 };
-$('again').onclick = () => roomRef.update({ state: 'lobby', words: null });
+// Closing the scoreboard is a local act: the host freeing the room for the
+// next round must not yank everyone else's scores off their screens, which is
+// what used to send the other players straight from the board to the lobby.
+// The round's words stay in the room until the next round starts, so anyone
+// can reopen the scoreboard from the lobby.
+function closeResults() {
+  dismissedRound = room.round;
+  resultsFor = -1;
+  if (room.host === uid && room.state !== 'lobby') roomRef.update({ state: 'lobby' });
+  render();
+}
+$('again').onclick = closeResults;
+$('last-scores').onclick = () => { resultsFor = room.round; render(); };
 
 /* ---------- game input ---------- */
 $('submit').onclick = () => boardUI && boardUI.submitCurrent();
@@ -266,20 +283,15 @@ function render() {
   const isHost = room.host === uid;
 
   if (room.state === 'lobby') {
-    boardRound = -1;
-    show('v-lobby');
-    const players = Object.values(room.players || {});
-    $('players').innerHTML = players
-      .map((p) => `<span class="player-pill">${escapeHtml(p.name)}</span>`).join('');
-    $('host-controls').style.display = isHost ? '' : 'none';
-    if (isHost) {
-      hostSize = room.size || hostSize;
-      paintSize();
-      setMsg('lobby-msg', players.length < 2 ? 'Waiting for players to join…' : 'Ready when you are!');
-    } else {
-      setMsg('lobby-msg', `Waiting for ${escapeHtml(room.hostName)} to start…`);
+    // Still looking at a scoreboard, or owed one for the round we just played
+    // (the host can send the room back to the lobby before our own clock has
+    // reached the end of the round).
+    if (room.round > 0 && resultsFor === room.round) return showResults(isHost);
+    if (playedRound === room.round && dismissedRound !== room.round) {
+      resultsFor = room.round;
+      return showResults(isHost);
     }
-    return;
+    return renderLobby(isHost);
   }
 
   // state === 'playing': phase depends on server time
@@ -303,13 +315,36 @@ function render() {
     return;
   }
 
+  // Round over — whoever has closed the scoreboard waits in the lobby view.
+  if (dismissedRound === room.round) return renderLobby(isHost);
+  resultsFor = room.round;
   showResults(isHost);
+}
+
+function renderLobby(isHost) {
+  boardRound = -1;
+  show('v-lobby');
+  const players = Object.values(room.players || {});
+  $('players').innerHTML = players
+    .map((p) => `<span class="player-pill">${escapeHtml(p.name)}</span>`).join('');
+  $('host-controls').style.display = isHost ? '' : 'none';
+  $('last-scores').style.display = (room.round > 0 && room.words) ? '' : 'none';
+  if (isHost) {
+    hostSize = room.size || hostSize;
+    paintSize();
+    setMsg('lobby-msg', players.length < 2 ? 'Waiting for players to join…' : 'Ready when you are!');
+  } else {
+    setMsg('lobby-msg', `Waiting for ${escapeHtml(room.hostName)} to start…`);
+  }
 }
 
 // Build the board UI once per round.
 function prepareRound() {
   if (boardRound === room.round) return;
   boardRound = room.round;
+  playedRound = room.round;
+  resultsFor = -1;
+  dismissedRound = -1;
   myWords = new Map();
   $('words').innerHTML = '';
   $('word-count').textContent = '0';
@@ -334,8 +369,8 @@ function prepareRound() {
 let resultsKey = '';
 function showResults(isHost) {
   show('v-results');
-  $('results-host').style.display = isHost ? '' : 'none';
-  $('results-wait').textContent = isHost ? '' : `Waiting for ${room.hostName} to start the next round…`;
+  $('results-wait').textContent = (isHost || room.state === 'lobby')
+    ? '' : `Waiting for ${room.hostName} to start the next round…`;
   // Rebuild only when the round or the word lists change (a slow client's
   // final word can arrive moments after the timer ends).
   const key = room.round + '|' + JSON.stringify(room.words || {});

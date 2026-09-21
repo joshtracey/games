@@ -32,11 +32,25 @@ function fbInit() {
 }
 
 // Milliseconds to add to Date.now() to approximate Firebase server time.
+// `.info/serverTimeOffset` reads 0 until the realtime connection is up, so wait
+// for `.info/connected` first: a phone that settled for 0 with a clock a few
+// seconds off would reach the end of a shared round before everybody else.
+// A slow or absent connection falls back to the device clock rather than hang.
 function fbServerOffset(db) {
   return new Promise((resolve) => {
-    db.ref('.info/serverTimeOffset').once('value',
-      (snap) => resolve(snap.val() || 0),
-      () => resolve(0));
+    const connRef = db.ref('.info/connected');
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      connRef.off('value', onConn);
+      db.ref('.info/serverTimeOffset').once('value',
+        (snap) => resolve(snap.val() || 0),
+        () => resolve(0));
+    };
+    const onConn = connRef.on('value', (snap) => { if (snap.val()) finish(); });
+    const timer = setTimeout(finish, 5000);
   });
 }
 
