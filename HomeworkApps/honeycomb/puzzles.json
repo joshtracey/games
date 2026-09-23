@@ -1,0 +1,7 @@
+{
+  "_howto": "One entry per week, copied from the homework sheet. week = the Monday (YYYY-MM-DD); a puzzle appears once that date arrives. center = the middle letter. outer = the six outside letters clockwise from the top. A repeated letter is fine — draw it exactly as the sheet does.",
+  "puzzles": [
+    { "week": "2026-09-14", "label": "14 au 17 septembre 2026", "center": "p", "outer": "nosstu" },
+    { "week": "2026-09-21", "label": "21 au 25 septembre 2026", "center": "n", "outer": "laeyjb" }
+  ]
+}

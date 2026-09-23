@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Honeycomb — Mots de la semaine</title>
+  <link rel="stylesheet" href="../../boggle/style.css" />
+  <style>
+    .how { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: .82rem; line-height: 1.4; color: var(--muted); }
+    .how b { color: var(--text); }
+    .how h3 { margin: 0 0 4px; font-size: .85rem; color: var(--accent); }
+    .how ul { margin: 0; padding-left: 16px; }
+    @media (max-width: 420px) { .how { grid-template-columns: 1fr; } }
+    .letters { letter-spacing: .12em; font-weight: 700; }
+    .letters .c { color: var(--gold); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <h1>🐝 Mots de la semaine</h1>
+    <a class="back" href="../">← Homework</a>
+  </div>
+  <div class="sub">Honeycomb — la ruche de lettres de la semaine</div>
+
+  <nav class="menu" id="weeks"><div class="message">Chargement…</div></nav>
+
+  <div class="panel" style="margin-top:12px">
+    <div class="how">
+      <div>
+        <h3>Règles</h3>
+        <ul>
+          <li>Tu as <b>7 lettres</b>.</li>
+          <li>La <b>lettre du centre</b> doit être utilisée dans chaque mot.</li>
+          <li>Tu peux utiliser les autres lettres <b>plus d'une fois</b>.</li>
+          <li>Trouve des mots de <b>4 lettres ou plus</b>.</li>
+          <li>Les mots doivent être de vrais mots <b>français</b>.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>How to play</h3>
+        <ul>
+          <li>Tap letters one at a time, or swipe across them and let go.</li>
+          <li>Letters don't need to touch, and can be reused.</li>
+          <li>Accents don't matter: ELAN counts as <i>élan</i>.</li>
+          <li>4-letter words = 1 point; longer = 1 per letter; using every letter = +7.</li>
+          <li>English words go in a bonus list (no points).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="../../boggle/core.js"></script>
+<script src="fr-words.js"></script>
+<script src="honeycomb.js"></script>
+<script>
+'use strict';
+(async function () {
+  const el = document.getElementById('weeks');
+  let puzzles;
+  try { puzzles = await loadPuzzles(); } catch (e) {
+    el.innerHTML = `<div class="message">Impossible de charger puzzles.json (${escapeHtml(e.message)})</div>`;
+    return;
+  }
+  if (!puzzles.length) { el.innerHTML = '<div class="message">Aucune ruche pour le moment.</div>'; return; }
+  el.innerHTML = puzzles.map((p, i) => {
+    const pz = buildPuzzle(p);
+    const prog = localProgress(p.week);
+    const found = prog.fr.filter((k) => pz.answers.has(k)).length;
+    const letters = `<span class="c">${p.center.toUpperCase()}</span> ${p.outer.join('').toUpperCase()}`;
+    const status = found
+      ? `${found} / ${pz.answers.size} mots · ${scoreOf(pz, prog.fr)} pts · ${rankOf(pz, prog.fr).name}`
+      : `${pz.answers.size} mots à trouver`;
+    return `<a href="play.html?week=${p.week}">` +
+      `<div class="icon">${i === 0 ? '🍯' : '📅'}</div>` +
+      `<div><div class="m-name">${i === 0 ? 'Cette semaine' : 'Semaine passée'} — ${escapeHtml(p.label)}</div>` +
+      `<div class="m-desc"><span class="letters">${letters}</span> · ${escapeHtml(status)}</div></div></a>`;
+  }).join('');
+})();
+</script>
+</body>
+</html>

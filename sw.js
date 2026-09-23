@@ -4,7 +4,7 @@
 // Phones re-fetch this file whenever the app is opened online; a changed
 // version triggers a background download of everything in PRECACHE, and the
 // menu page shows an "Update ready" banner to switch over.
-const CACHE = 'games-v12';
+const CACHE = 'games-v13';
 
 const PRECACHE = [
   './',
@@ -38,6 +38,12 @@ const PRECACHE = [
   './cribbage/',
   './dots-and-boxes/',
   './go/',
+  './HomeworkApps/',
+  './HomeworkApps/honeycomb/',
+  './HomeworkApps/honeycomb/play.html',
+  './HomeworkApps/honeycomb/honeycomb.js',
+  './HomeworkApps/honeycomb/fr-words.js',
+  './HomeworkApps/honeycomb/puzzles.json',
   './hex/',
   './mancala/',
   './quoridor/',

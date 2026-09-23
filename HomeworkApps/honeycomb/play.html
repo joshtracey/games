@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Honeycomb — Mots de la semaine</title>
+  <link rel="stylesheet" href="../../boggle/style.css" />
+  <style>
+    /* Honeycomb-specific bits; the rest comes from the Boggle theme. */
+    .rankbar { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+    .rankname { font-weight: 700; min-width: 7.5em; }
+    .track { flex: 1; display: flex; align-items: center; justify-content: space-between; position: relative; height: 16px; }
+    .track::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: rgba(255,255,255,.15); }
+    .dot { position: relative; width: 9px; height: 9px; border-radius: 50%; background: #4b5563; }
+    .dot.on { background: var(--gold); }
+    .dot.here { width: 22px; height: 22px; font-size: .7rem; font-weight: 700; color: #1a1a1a;
+      display: flex; align-items: center; justify-content: center; }
+    .stats { display: flex; justify-content: space-between; font-size: .8rem; color: var(--muted); margin: 6px 0 2px; }
+    .stats b { color: var(--gold); }
+
+    .entry { text-align: center; font-size: 1.9rem; font-weight: 800; letter-spacing: .06em;
+      min-height: 2.6rem; margin: 10px 0 2px; text-transform: uppercase; overflow-wrap: anywhere; }
+    .entry .c { color: var(--gold); }
+    .entry .x { color: #6b7280; }
+    .entry .caret { display: inline-block; width: 2px; height: 1.6rem; background: var(--gold);
+      vertical-align: -3px; margin-left: 2px; animation: blink 1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+    .entry.shake { animation: shake .35s; }
+    @keyframes shake { 25% { transform: translateX(-8px); } 50% { transform: translateX(8px); } 75% { transform: translateX(-4px); } }
+
+    .hive { display: block; width: min(100%, 330px); margin: 0 auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+    .hive .cell polygon { fill: #f0ede8; stroke: none; transition: fill .08s; }
+    .hive .cell.center polygon { fill: var(--gold); }
+    .hive .cell.press polygon { fill: #bfdbfe; }
+    .hive .cell.center.press polygon { fill: #fbbf24; }
+    .hive text { font: 800 38px system-ui, sans-serif; fill: #1a1a1a; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+
+    .controls { display: flex; justify-content: center; gap: 10px; margin: 12px 0 6px; }
+    .controls .btn { border-radius: 22px; min-width: 64px; }
+
+    .found-head { display: flex; justify-content: space-between; align-items: baseline; margin: 10px 0 4px; font-size: .85rem; color: var(--muted); }
+    .word-chip.pangram { border-color: rgba(245,158,11,.6); background: rgba(245,158,11,.12); color: var(--gold); font-weight: 700; }
+    .word-chip.rare::after { content: ' ★'; color: var(--accent); font-size: .7rem; }
+    .word-chip.missed { opacity: .45; }
+    .legend { font-size: .72rem; color: var(--muted); margin-top: 8px; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <h1>🐝 Honeycomb</h1>
+    <a class="back" href="index.html">← Mots de la semaine</a>
+  </div>
+  <div class="sub" id="sub">Chargement…</div>
+
+  <div class="panel" id="game" style="display:none">
+    <div class="rankbar">
+      <div class="rankname" id="rank">Débutant</div>
+      <div class="track" id="track"></div>
+    </div>
+    <div class="stats">
+      <span>Points : <b id="score">0</b></span>
+      <span>Mots : <b id="count">0</b> / <span id="total">0</span></span>
+    </div>
+
+    <div class="entry" id="entry"><span class="caret"></span></div>
+    <svg class="hive" id="hive" viewBox="-160 -165 320 330" aria-label="Ruche de lettres"></svg>
+    <div class="controls">
+      <button class="btn ghost" id="del">Effacer</button>
+      <button class="btn ghost" id="shuffle" title="Mélanger">🔀</button>
+      <button class="btn" id="enter">Entrer</button>
+    </div>
+    <div class="message" id="msg">Touche ou glisse sur les lettres. Clavier aussi !</div>
+
+    <div class="found-head"><span>Mots trouvés</span><span id="left"></span></div>
+    <div class="words" id="words"></div>
+    <div id="en-wrap" style="display:none">
+      <div class="found-head"><span>Bonus : mots anglais</span><span id="en-count"></span></div>
+      <div class="words" id="en-words"></div>
+    </div>
+    <div class="legend">Or = pangramme (toutes les lettres, +7) · ★ = mot rare, compte quand même</div>
+  </div>
+
+  <div class="panel" id="reveal-panel" style="display:none">
+    <button class="btn wide ghost" id="reveal">Voir les réponses de cette semaine-là</button>
+    <div class="words" id="answers"></div>
+  </div>
+
+</main>
+<script src="../../boggle/words.js"></script>
+<script src="../../boggle/core.js"></script>
+<script src="fr-words.js"></script>
+<script src="honeycomb.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const R = 52;                       // hex circumradius in SVG units
+const D = Math.sqrt(3) * R + 6;     // centre-to-centre distance (6 = gap)
+
+let puzzle = null;
+let prog = { fr: [], en: [] };
+let outer = [];                     // current (shuffleable) order of the six outer letters
+let typed = '';                     // letters entered so far
+
+/* ---- boot ---- */
+(async function boot() {
+  let puzzles;
+  try { puzzles = await loadPuzzles(); } catch (e) {
+    $('sub').textContent = `Impossible de charger puzzles.json (${e.message})`;
+    return;
+  }
+  const want = new URLSearchParams(location.search).get('week');
+  const p = puzzles.find((x) => x.week === want) || puzzles[0];
+  if (!p) { $('sub').textContent = 'Aucune ruche pour le moment.'; return; }
+  puzzle = buildPuzzle(p);
+  outer = puzzle.outer.slice();
+  $('sub').textContent = `Semaine du ${puzzle.label}` + (isCurrent(puzzles, p) ? '' : ' (semaine passée)');
+  $('reveal-panel').style.display = isCurrent(puzzles, p) ? 'none' : '';
+  prog = localProgress(puzzle.week);
+  $('game').style.display = '';
+  drawHive();
+  renderAll();
+})();
+
+/* ---- honeycomb drawing + pointer input ---- */
+
+// Slot 0 is the centre; 1–6 run clockwise from the top, as on the sheet.
+function slotXY(i) {
+  if (i === 0) return [0, 0];
+  const a = (-90 + 60 * (i - 1)) * Math.PI / 180;
+  return [D * Math.cos(a), D * Math.sin(a)];
+}
+function slotLetter(i) { return i === 0 ? puzzle.center : outer[i - 1]; }
+
+function drawHive() {
+  const pts = [0, 1, 2, 3, 4, 5].map((k) => {
+    const a = k * Math.PI / 3;
+    return `${(R * Math.cos(a)).toFixed(1)},${(R * Math.sin(a)).toFixed(1)}`;
+  }).join(' ');
+  $('hive').innerHTML = [0, 1, 2, 3, 4, 5, 6].map((i) => {
+    const [x, y] = slotXY(i);
+    return `<g class="cell${i === 0 ? ' center' : ''}" data-slot="${i}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">` +
+      `<polygon points="${pts}"/><text>${slotLetter(i).toUpperCase()}</text></g>`;
+  }).join('');
+}
+
+// Nearest hex to a screen point. `strict` only counts the inner part of a hex,
+// so a swipe grazing the edge of a neighbour doesn't pick it up.
+function slotAt(clientX, clientY, strict) {
+  const svg = $('hive');
+  const r = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  const scale = r.width / vb.width;
+  const x = (clientX - r.left) / scale + vb.x, y = (clientY - r.top) / scale + vb.y;
+  let best = -1, bestD = Infinity;
+  for (let i = 0; i < 7; i++) {
+    const [cx, cy] = slotXY(i);
+    const d = Math.hypot(x - cx, y - cy);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return bestD <= R * (strict ? 0.75 : 0.95) ? best : -1;
+}
+
+function press(i) {
+  const el = document.querySelector(`.cell[data-slot="${i}"]`);
+  if (!el) return;
+  el.classList.add('press');
+  setTimeout(() => el.classList.remove('press'), 140);
+}
+
+// Same feel as Boggle: tap letters one at a time, or press and swipe across
+// them and let go to submit. Letters may repeat, so there's no backtracking
+// on a swipe — "Effacer" removes the last letter.
+let downSlot = -1, dragging = false, lastSlot = -1;
+const hive = $('hive');
+hive.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  downSlot = slotAt(e.clientX, e.clientY, false);
+  dragging = false;
+  if (downSlot >= 0) press(downSlot);
+});
+hive.addEventListener('pointermove', (e) => {
+  if (downSlot < 0) return;
+  const i = slotAt(e.clientX, e.clientY, true);
+  if (!dragging) {
+    if (i === -1 || i === downSlot) return;
+    dragging = true;           // finger left the first hex: this is a swipe
+    typed = slotLetter(downSlot);
+    lastSlot = downSlot;
+  }
+  if (i === -1 || i === lastSlot) return;
+  typed += slotLetter(i);
+  lastSlot = i;
+  press(i);
+  renderEntry();
+});
+hive.addEventListener('pointerup', (e) => {
+  if (downSlot < 0) return;
+  const start = downSlot;
+  downSlot = -1;
+  if (dragging) { dragging = false; submit(); return; }
+  if (slotAt(e.clientX, e.clientY, false) === start) addLetter(slotLetter(start));
+});
+hive.addEventListener('pointercancel', () => { downSlot = -1; dragging = false; });
+
+$('del').onclick = () => { typed = typed.slice(0, -1); renderEntry(); };
+$('enter').onclick = submit;
+$('shuffle').onclick = shuffleOuter;
+
+document.addEventListener('keydown', (e) => {
+  if (!puzzle || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = stripAccents(e.key);
+  if (e.key === 'Enter') { e.preventDefault(); submit(); }
+  else if (e.key === 'Backspace') { e.preventDefault(); typed = typed.slice(0, -1); renderEntry(); }
+  else if (e.key === ' ') { e.preventDefault(); shuffleOuter(); }
+  else if (/^[a-z]$/.test(k)) {
+    addLetter(k);
+    if (k === puzzle.center) press(0);
+    else if (outer.includes(k)) press(outer.indexOf(k) + 1);
+  }
+});
+
+function addLetter(ch) {
+  if (typed.length >= 19) return;
+  typed += ch;
+  renderEntry();
+}
+
+function shuffleOuter() {
+  for (let i = outer.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [outer[i], outer[j]] = [outer[j], outer[i]];
+  }
+  drawHive();
+}
+
+/* ---- submitting words ---- */
+function submit() {
+  const w = typed;
+  if (!w) return;
+  typed = '';
+  const res = hcCheckWord(puzzle, w);
+  if (!res.ok) { renderEntry(w); return fail(res.reason); }
+  const k = res.entry.key;
+  const list = res.lang === 'fr' ? prog.fr : prog.en;
+  if (list.includes(k)) { renderEntry(w); return fail(`${res.entry.display.toUpperCase()} — déjà trouvé`); }
+  list.push(k);
+  list.sort();
+  saveLocalProgress(puzzle.week, prog);
+  renderEntry();
+  if (res.lang === 'en') {
+    setMsg(`${k.toUpperCase()} — mot anglais, bonus ! (0 point)`, 'ok');
+  } else {
+    const e = res.entry;
+    setMsg(e.pangram ? `PANGRAMME ! ${e.display.toUpperCase()} +${e.pts}` : `${e.display.toUpperCase()} +${e.pts}`, 'ok');
+  }
+  renderAll();
+}
+
+// A rejected word stays on screen for a moment, shaking, then clears.
+function fail(reason) {
+  setMsg(reason, 'err');
+  const el = $('entry');
+  el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+  setTimeout(() => { if (!typed) renderEntry(); }, 700);
+}
+
+function setMsg(text, cls) {
+  $('msg').textContent = text;
+  $('msg').className = 'message ' + (cls || '');
+}
+
+/* ---- rendering ---- */
+function renderEntry(shown) {
+  const w = shown != null ? shown : typed;
+  $('entry').innerHTML = [...w].map((ch) => {
+    const cls = ch === puzzle.center ? 'c' : (puzzle.letters.has(ch) ? '' : 'x');
+    return `<span class="${cls}">${escapeHtml(ch)}</span>`;
+  }).join('') + (shown != null ? '' : '<span class="caret"></span>');
+}
+
+function renderAll() {
+  const score = scoreOf(puzzle, prog.fr);
+  const rank = rankOf(puzzle, prog.fr);
+  const official = prog.fr.filter((k) => puzzle.answers.has(k)).length;
+  $('score').textContent = score;
+  $('count').textContent = official;
+  $('total').textContent = puzzle.answers.size;
+  $('rank').textContent = rank.name;
+  $('track').innerHTML = RANKS.map((_, i) =>
+    `<div class="dot${i <= rank.i ? ' on' : ''}${i === Math.min(rank.i, RANKS.length - 1) ? ' here' : ''}">` +
+    `${i === Math.min(rank.i, RANKS.length - 1) ? score : ''}</div>`).join('');
+  const pangramsLeft = [...puzzle.answers.values()].filter((a) => a.pangram && !prog.fr.includes(a.key)).length;
+  const left = puzzle.answers.size - official;
+  $('left').textContent = left
+    ? `encore ${left} mot${left > 1 ? 's' : ''}` + (pangramsLeft ? ` · ${pangramsLeft} pangramme${pangramsLeft > 1 ? 's' : ''}` : '')
+    : 'tous trouvés !';
+  $('words').innerHTML = prog.fr.length
+    ? prog.fr.map((k) => chip(puzzle.answers.get(k) || puzzle.bonus.get(k), !puzzle.answers.has(k))).join('')
+    : '<span class="lbl">Aucun mot pour l\'instant.</span>';
+  $('en-wrap').style.display = prog.en.length ? '' : 'none';
+  $('en-count').textContent = prog.en.length;
+  $('en-words').innerHTML = prog.en.map((k) => `<span class="word-chip">${escapeHtml(k)}</span>`).join('');
+  renderEntry();
+}
+
+function chip(e, rare, missed) {
+  if (!e) return '';
+  const cls = ['word-chip', e.pangram ? 'pangram' : '', rare ? 'rare' : '', missed ? 'missed' : ''].join(' ');
+  return `<span class="${cls}">${escapeHtml(e.display)}<span class="pts">${e.pts}</span></span>`;
+}
+
+$('reveal').onclick = () => {
+  $('reveal').style.display = 'none';
+  $('answers').innerHTML = [...puzzle.answers.values()]
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map((a) => chip(a, false, !prog.fr.includes(a.key))).join('');
+};
+</script>
+</body>
+</html>
